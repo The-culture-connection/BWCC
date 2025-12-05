@@ -279,7 +279,7 @@ function buildEventProperties(
   formData: Record<string, any>,
   name: string,
   organization: string,
-  requestPageId: string,
+  requestPageId: string | null,
   moreInfoLink: string = ''
 ): Record<string, any> {
   const eventType = eventTypeMap[type];
@@ -314,11 +314,11 @@ function buildEventProperties(
       },
     },
     'Related Request': {
-      relation: [
+      relation: requestPageId ? [
         {
           id: requestPageId,
         },
-      ],
+      ] : [],
     },
   };
 
@@ -1071,27 +1071,29 @@ export async function POST(request: NextRequest) {
         eventPageId = eventResult.id;
         console.log('Successfully created Event entry:', eventPageId);
 
-        // Update the Request entry to link to the Event
-        await fetch(`https://api.notion.com/v1/pages/${requestPageId}`, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${notionApiKey}`,
-            'Content-Type': 'application/json',
-            'Notion-Version': '2022-06-28',
-          },
-          body: JSON.stringify({
-            properties: {
-              'Related Event': {
-                relation: [
-                  {
-                    id: eventPageId,
-                  },
-                ],
-              },
+        // Update the Request entry to link to the Event (only if Request entry exists)
+        if (requestPageId) {
+          await fetch(`https://api.notion.com/v1/pages/${requestPageId}`, {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${notionApiKey}`,
+              'Content-Type': 'application/json',
+              'Notion-Version': '2022-06-28',
             },
-          }),
-        });
-        console.log('Linked Request to Event');
+            body: JSON.stringify({
+              properties: {
+                'Related Event': {
+                  relation: [
+                    {
+                      id: eventPageId,
+                    },
+                  ],
+                },
+              },
+            }),
+          });
+          console.log('Linked Request to Event');
+        }
       } catch (error: any) {
         console.error('Failed to create Event entry:', error);
         // Don't fail the whole request if event creation fails
