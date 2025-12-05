@@ -103,9 +103,10 @@ export default function EventCalendar() {
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
       
-      // Try to open Google Calendar subscription page
-      // This will open in a new tab
-      const googleCalendarUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(url)}`;
+      // Open Google Calendar with instructions
+      // Google Calendar doesn't support direct subscription via URL parameter reliably
+      // So we'll open the "Add calendar" page and user can paste the URL
+      const googleCalendarUrl = 'https://calendar.google.com/calendar/r/settings/addbyurl';
       window.open(googleCalendarUrl, '_blank');
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);
@@ -401,9 +402,9 @@ export default function EventCalendar() {
 
               <p className="text-brand-black/80 font-secondary mb-6">
                 {copied ? (
-                  <span className="text-green-600 font-semibold">✓ URL copied to clipboard! Google Calendar should open in a new tab.</span>
+                  <span className="text-green-600 font-semibold">✓ URL copied! Google Calendar is open in a new tab. Paste the URL in the &quot;URL of calendar&quot; field.</span>
                 ) : (
-                  'Copy the calendar feed URL below and paste it into your calendar app to automatically receive event updates.'
+                  'The calendar feed URL will be copied to your clipboard. Google Calendar will open in a new tab - paste the URL in the &quot;URL of calendar&quot; field.'
                 )}
               </p>
 
