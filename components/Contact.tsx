@@ -31,7 +31,7 @@ export default function Contact() {
             Contact Us
           </h2>
           <p className="text-xl text-brand-black/70 font-secondary max-w-2xl mx-auto">
-            Get in touch with us. We'd love to hear from you.
+            Get in touch with us. We&apos;d love to hear from you.
           </p>
         </motion.div>
 

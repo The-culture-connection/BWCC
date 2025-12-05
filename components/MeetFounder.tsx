@@ -64,15 +64,15 @@ export default function MeetFounder() {
                 </p>
                 
                 <p className="text-lg text-brand-black/90 leading-relaxed font-secondary">
-                  Ashley's natural gift is critically thinking and connecting and elevating individuals who are able to relate and empower individuals in the community to navigate our complex healthcare system.
+                  Ashley&apos;s natural gift is critically thinking and connecting and elevating individuals who are able to relate and empower individuals in the community to navigate our complex healthcare system.
                 </p>
                 
                 <div className="pt-4 border-t border-brand-gold/30">
                   <p className="text-xl font-primary font-semibold text-brand-brown italic">
-                    "Life is Not Surface Level"
+                    &quot;Life is Not Surface Level&quot;
                   </p>
                   <p className="text-sm text-brand-black/70 font-secondary mt-2">
-                    - Ashley's signature quote
+                    - Ashley&apos;s signature quote
                   </p>
                 </div>
               </div>

@@ -432,9 +432,9 @@ export default function EventCalendar() {
                   <h4 className="font-secondary font-semibold text-brand-black mb-2">Google Calendar:</h4>
                   <ol className="list-decimal list-inside space-y-1 text-brand-black/80 font-secondary text-sm ml-2">
                     <li>Open Google Calendar on your computer</li>
-                    <li>Click the <strong>+</strong> next to "Other calendars"</li>
-                    <li>Select <strong>"From URL"</strong></li>
-                    <li>Paste the URL above and click <strong>"Add calendar"</strong></li>
+                    <li>Click the <strong>+</strong> next to &quot;Other calendars&quot;</li>
+                    <li>Select <strong>&quot;From URL&quot;</strong></li>
+                    <li>Paste the URL above and click <strong>&quot;Add calendar&quot;</strong></li>
                   </ol>
                 </div>
 
@@ -444,7 +444,7 @@ export default function EventCalendar() {
                     <li>Open Calendar app on your Mac or iPhone</li>
                     <li>Go to <strong>File → New Calendar Subscription</strong> (Mac) or <strong>Settings → Calendar → Add Account → Other → Add Subscribed Calendar</strong> (iPhone)</li>
                     <li>Paste the URL above</li>
-                    <li>Click <strong>"Subscribe"</strong></li>
+                    <li>Click <strong>&quot;Subscribe&quot;</strong></li>
                   </ol>
                 </div>
 
@@ -453,8 +453,8 @@ export default function EventCalendar() {
                   <ol className="list-decimal list-inside space-y-1 text-brand-black/80 font-secondary text-sm ml-2">
                     <li>Open Outlook Calendar</li>
                     <li>Go to <strong>File → Account Settings → Internet Calendars</strong></li>
-                    <li>Click <strong>"New"</strong> and paste the URL above</li>
-                    <li>Click <strong>"Add"</strong></li>
+                    <li>Click <strong>&quot;New&quot;</strong> and paste the URL above</li>
+                    <li>Click <strong>&quot;Add&quot;</strong></li>
                   </ol>
                 </div>
               </div>

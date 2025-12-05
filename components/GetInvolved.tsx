@@ -35,7 +35,7 @@ export default function GetInvolved() {
                 Get Involved
               </h2>
               <p className="text-xl text-brand-black/80 font-secondary max-w-2xl mx-auto">
-                Choose how you'd like to get involved with Black Women Cultivating Change
+                Choose how you&apos;d like to get involved with Black Women Cultivating Change
               </p>
             </motion.div>
 
