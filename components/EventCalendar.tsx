@@ -92,6 +92,13 @@ export default function EventCalendar() {
     }
   };
 
+  const handleDirectSubscribe = (type: 'public' | 'private') => {
+    const url = getCalendarFeedUrl(type === 'private');
+    // Use webcal:// protocol to trigger calendar app directly
+    const webcalUrl = url.replace(/^https?:\/\//, 'webcal://');
+    window.location.href = webcalUrl;
+  };
+
   const openSubscribeModal = async (type: 'public' | 'private') => {
     setSubscribeType(type);
     setShowSubscribeModal(true);
@@ -103,13 +110,14 @@ export default function EventCalendar() {
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
       
-      // Open Google Calendar with instructions
-      // Google Calendar doesn't support direct subscription via URL parameter reliably
-      // So we'll open the "Add calendar" page and user can paste the URL
-      const googleCalendarUrl = 'https://calendar.google.com/calendar/r/settings/addbyurl';
-      window.open(googleCalendarUrl, '_blank');
+      // Open Google Calendar "Add by URL" page
+      // Note: Google Calendar doesn't support pre-filling the URL field for security reasons
+      // But we've copied it to clipboard, so user just needs to paste (Ctrl+V / Cmd+V)
+      window.open('https://calendar.google.com/calendar/r/settings/addbyurl', '_blank');
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);
+      // Still open Google Calendar even if clipboard fails
+      window.open('https://calendar.google.com/calendar/r/settings/addbyurl', '_blank');
     }
   };
 
@@ -402,9 +410,11 @@ export default function EventCalendar() {
 
               <p className="text-brand-black/80 font-secondary mb-6">
                 {copied ? (
-                  <span className="text-green-600 font-semibold">✓ URL copied! Google Calendar is open in a new tab. Paste the URL in the &quot;URL of calendar&quot; field.</span>
+                  <span className="text-green-600 font-semibold">
+                    ✓ URL copied! Google Calendar is open in a new tab. Simply press <kbd className="px-2 py-1 bg-brand-cream rounded text-sm">Ctrl+V</kbd> (or <kbd className="px-2 py-1 bg-brand-cream rounded text-sm">Cmd+V</kbd> on Mac) to paste the URL in the &quot;URL of calendar&quot; field, then click &quot;Add calendar&quot;.
+                  </span>
                 ) : (
-                  'The calendar feed URL will be copied to your clipboard. Google Calendar will open in a new tab - paste the URL in the &quot;URL of calendar&quot; field.'
+                  'The calendar feed URL will be copied to your clipboard. Google Calendar will open in a new tab - just paste the URL (Ctrl+V or Cmd+V) and click &quot;Add calendar&quot;.'
                 )}
               </p>
 
