@@ -306,7 +306,7 @@ function buildEventProperties(
       },
     },
     'Public Event?': {
-      checkbox: false,
+      checkbox: type === 'speak' && (formData.isPublicEvent === true || formData.isPublicEvent === 'true') ? true : false,
     },
     'Marketing Status': {
       select: {
@@ -1015,34 +1015,43 @@ export async function POST(request: NextRequest) {
       rich_text: [],
     };
 
-    // Create page in Notion database
-    const response = await fetch('https://api.notion.com/v1/pages', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${notionApiKey}`,
-        'Content-Type': 'application/json',
-        'Notion-Version': '2022-06-28',
-      },
-      body: JSON.stringify({
-        parent: {
-          database_id: requestsDatabaseId,
+    // Types that should NOT create Request & Intake entries (only go to People & Partners)
+    const skipRequestTypes = ['panelist', 'volunteer', 'podcast'];
+    let requestPageId: string | null = null;
+
+    // Only create Request & Intake entry for types that are NOT in skipRequestTypes
+    if (!skipRequestTypes.includes(type)) {
+      // Create page in Notion database
+      const response = await fetch('https://api.notion.com/v1/pages', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${notionApiKey}`,
+          'Content-Type': 'application/json',
+          'Notion-Version': '2022-06-28',
         },
-        properties,
-      }),
-    });
+        body: JSON.stringify({
+          parent: {
+            database_id: requestsDatabaseId,
+          },
+          properties,
+        }),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Notion API error:', errorData);
-      return NextResponse.json(
-        { error: `Failed to submit form: ${errorData.message || 'Unknown error'}` },
-        { status: response.status }
-      );
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Notion API error:', errorData);
+        return NextResponse.json(
+          { error: `Failed to submit form: ${errorData.message || 'Unknown error'}` },
+          { status: response.status }
+        );
+      }
+
+      const result = await response.json();
+      requestPageId = result.id;
+      console.log('Successfully created Request entry:', requestPageId);
+    } else {
+      console.log(`Skipping Request & Intake entry for type: ${type} (only creating People & Partners entry)`);
     }
-
-    const result = await response.json();
-    const requestPageId = result.id;
-    console.log('Successfully created Request entry:', requestPageId);
 
     // Create Events & Activities entry for applicable types
     let eventPageId: string | null = null;

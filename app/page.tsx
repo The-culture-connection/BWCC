@@ -7,8 +7,6 @@ import Partners from '@/components/Partners';
 import Donate from '@/components/Donate';
 import MeetFounder from '@/components/MeetFounder';
 import AnnualSummit from '@/components/AnnualSummit';
-import Events from '@/components/Events';
-import Contact from '@/components/Contact';
 
 export default function Home() {
   return (
@@ -21,8 +19,6 @@ export default function Home() {
       <OurWork />
       <Partners />
       <AnnualSummit />
-      <Events />
-      <Contact />
       <Donate />
     </div>
   );

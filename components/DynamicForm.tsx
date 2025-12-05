@@ -31,6 +31,7 @@ const formDefinitions: Record<string, any> = {
           { name: 'purpose', label: 'What is the purpose of this event?', type: 'textarea', required: true, mapsTo: 'Details' },
           { name: 'attendees', label: 'Expected number of attendees', type: 'number', required: true, mapsTo: 'Details' },
           { name: 'location', label: 'Event location (address or virtual link)', type: 'text', required: true, mapsTo: 'Details' },
+          { name: 'isPublicEvent', label: 'Is this a public event?', type: 'boolean', required: false, mapsTo: 'Public Event?' },
           { name: 'additionalNotes', label: 'Additional notes or requests', type: 'textarea', required: false, mapsTo: 'Details' },
         ],
       },
@@ -392,6 +393,19 @@ export default function DynamicForm({ type, onSuccess }: DynamicFormProps) {
               </label>
             ))}
           </div>
+        );
+
+      case 'boolean':
+        return (
+          <label className="flex items-center space-x-2 font-secondary cursor-pointer">
+            <input
+              type="checkbox"
+              checked={value === true || value === 'true'}
+              onChange={(e) => handleChange(field.name, e.target.checked)}
+              className="w-4 h-4 text-brand-gold focus:ring-brand-gold rounded"
+            />
+            <span>Yes, this is a public event</span>
+          </label>
         );
 
       case 'checkbox':
