@@ -126,20 +126,39 @@ export default function EventCalendar() {
       console.error('Failed to copy to clipboard:', err);
     }
     
-    // Try to open Google Calendar with the feed URL
-    // Using the cid parameter - this sometimes works to pre-fill the subscription
-    const googleCalendarUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(url)}`;
+    // Open Google Calendar "Add by URL" page
+    // The cid parameter method doesn't work reliably, so we use the direct addbyurl page
+    window.open('https://calendar.google.com/calendar/r/settings/addbyurl', '_blank');
+  };
+
+  const handleAddToGoogleCalendar = (type: 'public' | 'private') => {
+    const url = getCalendarFeedUrl(type === 'private');
     
-    // Open in new tab
-    const newWindow = window.open(googleCalendarUrl, '_blank');
+    // Try multiple Google Calendar subscription methods
+    // Method 1: Direct URL subscription (most reliable)
+    const directUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(url)}`;
     
-    // If that doesn't work, try the addbyurl page
-    if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
-      // Popup blocked or failed, open addbyurl page instead
-      setTimeout(() => {
+    // Method 2: If URL has query params, we might need to handle it differently
+    // Convert http/https to webcal for better compatibility
+    const webcalUrl = url.replace(/^https?:\/\//, 'webcal://');
+    const googleCalendarWebcal = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`;
+    
+    // Try the direct method first
+    const newWindow = window.open(directUrl, '_blank');
+    
+    // If popup is blocked or fails, try webcal version
+    setTimeout(() => {
+      if (!newWindow || newWindow.closed) {
+        window.open(googleCalendarWebcal, '_blank');
+      }
+    }, 500);
+    
+    // Fallback: Open addbyurl page
+    setTimeout(() => {
+      if (!newWindow || newWindow.closed) {
         window.open('https://calendar.google.com/calendar/r/settings/addbyurl', '_blank');
-      }, 1000);
-    }
+      }
+    }, 1500);
   };
 
   const previousMonth = () => {
@@ -462,17 +481,19 @@ export default function EventCalendar() {
               <div className="flex flex-col items-center gap-4">
                 <button
                   onClick={() => {
-                    const url = getCalendarFeedUrl(subscribeType === 'private');
-                    const googleCalendarUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(url)}`;
-                    window.open(googleCalendarUrl, '_blank');
+                    // Open the "Add calendar by URL" page - most reliable method
+                    // Google Calendar's cid parameter doesn't work reliably with custom feeds
+                    window.open('https://calendar.google.com/calendar/r/settings/addbyurl', '_blank');
                   }}
                   className="bg-brand-gold text-brand-black px-8 py-4 rounded-lg hover:bg-brand-brown hover:text-white transition-colors font-secondary font-bold text-lg flex items-center gap-2 shadow-lg"
                 >
                   <Calendar size={24} />
-                  Add to Google Calendar
+                  Open Google Calendar
                 </button>
-                <p className="text-sm text-brand-black/60 font-secondary text-center">
-                  Click the button above if Google Calendar didn&apos;t open automatically
+                <p className="text-sm text-brand-black/60 font-secondary text-center max-w-md">
+                  Click the button above to open Google Calendar. 
+                  <br />
+                  The URL is already copied! Just press <kbd className="px-1.5 py-0.5 bg-brand-cream rounded text-xs">Ctrl+V</kbd> (or <kbd className="px-1.5 py-0.5 bg-brand-cream rounded text-xs">Cmd+V</kbd> on Mac) in the &quot;URL of calendar&quot; field, then click &quot;Add calendar&quot;.
                 </p>
               </div>
             </motion.div>
