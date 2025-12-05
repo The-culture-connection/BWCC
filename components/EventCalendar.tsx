@@ -182,21 +182,37 @@ export default function EventCalendar() {
           
           {/* Subscribe Buttons */}
           <div className="flex flex-wrap justify-center gap-4 mb-8">
-            <button
-              onClick={() => openSubscribeModal('public')}
-              className="bg-brand-gold text-brand-black px-6 py-3 rounded-lg hover:bg-brand-brown hover:text-white transition-colors font-secondary font-semibold flex items-center gap-2"
-            >
-              <Calendar size={20} />
-              Subscribe to Public Calendar
-            </button>
-            {isAuthenticated && (
+            <div className="flex flex-col items-center gap-2">
               <button
-                onClick={() => openSubscribeModal('private')}
-                className="bg-brand-brown text-white px-6 py-3 rounded-lg hover:bg-brand-gold hover:text-brand-black transition-colors font-secondary font-semibold flex items-center gap-2"
+                onClick={() => handleDirectSubscribe('public')}
+                className="bg-brand-gold text-brand-black px-6 py-3 rounded-lg hover:bg-brand-brown hover:text-white transition-colors font-secondary font-semibold flex items-center gap-2"
               >
                 <Calendar size={20} />
-                Subscribe to Private Calendar
+                Subscribe to Public Calendar
               </button>
+              <button
+                onClick={() => openSubscribeModal('public')}
+                className="text-brand-black/70 hover:text-brand-gold text-sm font-secondary underline"
+              >
+                Or use Google Calendar web
+              </button>
+            </div>
+            {isAuthenticated && (
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  onClick={() => handleDirectSubscribe('private')}
+                  className="bg-brand-brown text-white px-6 py-3 rounded-lg hover:bg-brand-gold hover:text-brand-black transition-colors font-secondary font-semibold flex items-center gap-2"
+                >
+                  <Calendar size={20} />
+                  Subscribe to Private Calendar
+                </button>
+                <button
+                  onClick={() => openSubscribeModal('private')}
+                  className="text-brand-black/70 hover:text-brand-gold text-sm font-secondary underline"
+                >
+                  Or use Google Calendar web
+                </button>
+              </div>
             )}
           </div>
         </motion.div>
