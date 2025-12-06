@@ -302,7 +302,7 @@ function buildEventProperties(
     },
     'Status': {
       select: {
-        name: 'Requested',
+        name: ['volunteer', 'panelist', 'podcast', 'partner'].includes(type) ? 'Pending' : 'Requested',
       },
     },
     'Public Event?': {
@@ -899,6 +899,11 @@ export async function POST(request: NextRequest) {
       'Request Type': {
         select: {
           name: requestTypeMap[type] || type,
+        },
+      },
+      'Status': {
+        select: {
+          name: 'Pending',
         },
       },
       'Decision': {
