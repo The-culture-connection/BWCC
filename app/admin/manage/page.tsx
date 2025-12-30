@@ -39,7 +39,14 @@ export default function AdminManagePage() {
 
   const loadUsers = async () => {
     try {
-      const response = await fetch('/api/admin/users');
+      // Add timestamp to prevent caching
+      const timestamp = Date.now();
+      const response = await fetch(`/api/admin/users?t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       const data = await response.json();
       setUsers(data.users || []);
     } catch (error) {
