@@ -66,8 +66,57 @@ export async function POST(request: NextRequest) {
         
         const personData = buildPerson(type, formDataObj, name, organization, email, phone, personEventId, moreInfoLink, assignedEventId);
         if (personData) {
-          await createPerson(personData);
-          console.log('Successfully created People & Partners entry');
+          const personId = await createPerson(personData);
+          console.log('Successfully created People & Partners entry:', personId);
+          
+          // CRITICAL: Link person to event bidirectionally - MUST save to event document
+          // This ensures people appear in the event detail page
+          if (personEventId && personId) {
+            try {
+              const { adminDb } = await import('@/lib/firebase/admin');
+              const { Timestamp } = await import('firebase-admin/firestore');
+              if (!adminDb) {
+                console.error('Admin DB not available for linking person to event');
+                throw new Error('Admin DB not initialized');
+              }
+              
+              console.log(`[LINK] Attempting to link person ${personId} to event ${personEventId}`);
+              const eventRef = adminDb.collection('events').doc(personEventId);
+              const eventDoc = await eventRef.get();
+              
+              if (!eventDoc.exists) {
+                console.error(`[LINK] ERROR: Event ${personEventId} does not exist, cannot link person ${personId}`);
+              } else {
+                const eventData = eventDoc.data();
+                // Ensure relatedPersonIds is an array (handle undefined/null)
+                const relatedPersonIds = Array.isArray(eventData?.relatedPersonIds) 
+                  ? [...eventData.relatedPersonIds] 
+                  : [];
+                
+                // Only add if not already present
+                if (!relatedPersonIds.includes(personId)) {
+                  relatedPersonIds.push(personId);
+                  
+                  // Update the event document with the person ID
+                  await eventRef.update({
+                    relatedPersonIds: relatedPersonIds,
+                    updatedAt: Timestamp.fromDate(new Date()),
+                  });
+                  
+                  console.log(`[LINK] ✓ SUCCESS: Linked person ${personId} to event ${personEventId}. Event now has ${relatedPersonIds.length} people.`);
+                } else {
+                  console.log(`[LINK] Person ${personId} already linked to event ${personEventId}`);
+                }
+              }
+            } catch (error: any) {
+              console.error(`[LINK] ERROR linking person ${personId} to event ${personEventId}:`, error);
+              console.error('[LINK] Error message:', error.message);
+              console.error('[LINK] Error stack:', error.stack);
+              // Continue - don't fail the whole request, but log it for debugging
+            }
+          } else {
+            console.log(`[LINK] Skipping event link - personEventId: ${personEventId || 'null'}, personId: ${personId || 'null'}`);
+          }
         }
       } catch (error: any) {
         console.error('Failed to create People & Partners entry:', error);

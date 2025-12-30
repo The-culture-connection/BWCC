@@ -61,10 +61,7 @@ export function buildDetails(type: string, formData: Record<string, any>): strin
       break;
 
     case 'partner':
-      if (formData.partnershipType) details.push(`Partnership Type: ${formData.partnershipType}`);
-      if (formData.problem) details.push(`Problem/Need: ${formData.problem}`);
-      if (formData.outcomes) details.push(`Desired Outcomes: ${formData.outcomes}`);
-      if (formData.additionalNotes) details.push(`Additional Information: ${formData.additionalNotes}`);
+      if (formData.partnershipRequest) details.push(`Partnership Request: ${formData.partnershipRequest}`);
       break;
 
     case 'listening':
@@ -164,8 +161,8 @@ export function generateEventTitle(type: string, name: string, organization?: st
   if (type === 'training' && formData?.trainingType) {
     return `${formData.trainingType} Training – ${orgName}`;
   }
-  if (type === 'partner' && formData?.partnershipType) {
-    return `${formData.partnershipType} – ${orgName}`;
+  if (type === 'partner' && formData?.engagementType) {
+    return `${eventType} – ${orgName}`;
   }
   
   return `${eventType} – ${orgName}`;
@@ -200,9 +197,7 @@ export function buildEventDescription(type: string, formData: Record<string, any
       break;
 
     case 'partner':
-      if (formData.partnershipType) description.push(`Partnership Type: ${formData.partnershipType}`);
-      if (formData.problem) description.push(`Problem/Need: ${formData.problem}`);
-      if (formData.outcomes) description.push(`Desired Outcomes: ${formData.outcomes}`);
+      if (formData.partnershipRequest) description.push(formData.partnershipRequest);
       break;
   }
 
@@ -325,7 +320,7 @@ export function buildEvent(
       purpose = formData.purpose || '';
       break;
     case 'partner':
-      purpose = formData.problem || '';
+      purpose = formData.partnershipRequest || '';
       break;
     case 'listening':
       purpose = formData.goal || '';
@@ -343,7 +338,7 @@ export function buildEvent(
   if (purpose) event.purpose = purpose;
 
   // Add Audience Type and Audience Number
-  if (type === 'speak') {
+  if (type === 'speak' || type === 'partner') {
     if (formData.audience) event.audienceType = formData.audience;
     if (formData.attendees) {
       const attendeeCount = typeof formData.attendees === 'number' 
@@ -439,9 +434,7 @@ export function buildPerson(
   
   switch (type) {
     case 'partner':
-      if (formData.partnershipType) {
-        expertiseAreas.push(formData.partnershipType);
-      }
+      // No expertise areas for partner form
       break;
       
     case 'panelist':
@@ -480,11 +473,9 @@ export function buildPerson(
   let bio = '';
   switch (type) {
     case 'partner':
-      const partnerBio: string[] = [];
-      if (formData.problem) partnerBio.push(`Need/Problem: ${formData.problem}`);
-      if (formData.outcomes) partnerBio.push(`Desired Outcomes: ${formData.outcomes}`);
-      if (formData.additionalNotes) partnerBio.push(`Additional Notes: ${formData.additionalNotes}`);
-      bio = partnerBio.join('\n\n');
+      if (formData.partnershipRequest) {
+        bio = formData.partnershipRequest;
+      }
       break;
       
     case 'panelist':

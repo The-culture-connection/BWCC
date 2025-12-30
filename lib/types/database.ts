@@ -64,6 +64,7 @@ export interface Event {
   zapierId?: string;
   relatedRequestId?: string;
   relatedCommitteeIds?: string[]; // Committee IDs (multiselect)
+  relatedPersonIds?: string[]; // Person IDs (for panelists/volunteers/partners)
   content?: EventContent; // Collected content for the event
   createdAt: Date;
   updatedAt: Date;

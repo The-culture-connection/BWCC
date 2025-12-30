@@ -36,7 +36,7 @@ const formDefinitions: Record<string, any> = {
         ],
       },
       {
-        title: 'Budget & Scheduling',
+        title: 'When can you chat more?',
         fields: [
           { name: 'budget', label: 'Budget / Compensation available', type: 'text', required: false, mapsTo: 'Budget / Compensation' },
           { name: 'preferredDate', label: 'Preferred date', type: 'date', required: true, mapsTo: 'Preferred Dates' },
@@ -57,26 +57,25 @@ const formDefinitions: Record<string, any> = {
       {
         title: 'Contact Information',
         fields: [
-          { name: 'name', label: 'Point of Contact Name', type: 'text', required: true, mapsTo: 'Name' },
-          { name: 'organization', label: 'Organization name', type: 'text', required: true, mapsTo: 'Organization' },
+          { name: 'name', label: 'Name', type: 'text', required: true, mapsTo: 'Name' },
+          { name: 'organization', label: 'Organization', type: 'text', required: true, mapsTo: 'Organization' },
           { name: 'email', label: 'Email', type: 'email', required: true, mapsTo: 'Email' },
-          { name: 'phone', label: 'Phone number', type: 'tel', required: false, mapsTo: 'Phone' },
+          { name: 'phone', label: 'Phone Number', type: 'tel', required: false, mapsTo: 'Phone' },
         ],
       },
       {
         title: 'Partnership Request Details',
         fields: [
-          { name: 'partnershipType', label: 'What type of partnership are you seeking?', type: 'select', options: ['Program collaboration', 'Speaking / workshop', 'Research or data project', 'Community event', 'Consulting / expertise', 'Other'], required: true, mapsTo: 'Details' },
-          { name: 'problem', label: 'What need/problem are you trying to solve?', type: 'textarea', required: true, mapsTo: 'Details' },
-          { name: 'outcomes', label: 'What outcomes do you want from this partnership?', type: 'textarea', required: true, mapsTo: 'Details' },
-          { name: 'additionalNotes', label: 'Additional information', type: 'textarea', required: false, mapsTo: 'Details' },
+          { name: 'partnershipRequest', label: 'Tell us about your partnership request:', type: 'textarea', required: true, mapsTo: 'Details' },
         ],
       },
       {
-        title: 'Budget & Timeline',
+        title: 'Scheduling',
         fields: [
-          { name: 'budget', label: 'Budget / Resources available', type: 'text', required: false, mapsTo: 'Budget / Compensation' },
-          { name: 'timeline', label: 'Preferred timeline/dates', type: 'text', required: true, mapsTo: 'Preferred Dates' },
+          { name: 'budget', label: 'Budget / Compensation available', type: 'text', required: false, mapsTo: 'Budget / Compensation' },
+          { name: 'preferredDate', label: 'Preferred date', type: 'date', required: true, mapsTo: 'Preferred Dates' },
+          { name: 'preferredStartTime', label: 'Preferred start time', type: 'time', required: true, mapsTo: 'Preferred Dates' },
+          { name: 'preferredEndTime', label: 'Preferred end time', type: 'time', required: false, mapsTo: 'Preferred Dates' },
         ],
       },
       {
@@ -111,7 +110,7 @@ const formDefinitions: Record<string, any> = {
         ],
       },
       {
-        title: 'Budget & Scheduling',
+        title: '',
         fields: [
           { name: 'compensation', label: 'Compensation provided (per participant)', type: 'text', required: false, mapsTo: 'Budget / Compensation' },
           { name: 'preferredDate', label: 'Preferred date', type: 'date', required: true, mapsTo: 'Preferred Dates' },

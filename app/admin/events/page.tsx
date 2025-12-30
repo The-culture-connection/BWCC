@@ -2,12 +2,13 @@
 
 import AdminLayout from '@/components/AdminLayout';
 import { useEffect, useState } from 'react';
-import { Event } from '@/lib/types/database';
+import { Event, Person } from '@/lib/types/database';
 import EventTasksSection from '@/components/EventTasksSection';
 
 export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [committees, setCommittees] = useState<Array<{ id: string; name: string }>>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<{ status?: string }>({});
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
@@ -16,6 +17,7 @@ export default function EventsPage() {
   useEffect(() => {
     loadEvents();
     loadCommittees();
+    loadPeople();
   }, [filter]);
 
   const loadCommittees = async () => {
@@ -25,6 +27,16 @@ export default function EventsPage() {
       setCommittees(data.committees || []);
     } catch (error) {
       console.error('Error loading committees:', error);
+    }
+  };
+
+  const loadPeople = async () => {
+    try {
+      const response = await fetch('/api/admin/people');
+      const data = await response.json();
+      setPeople(data.people || []);
+    } catch (error) {
+      console.error('Error loading people:', error);
     }
   };
 
@@ -147,7 +159,21 @@ export default function EventsPage() {
                   <tr key={event.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <button
-                        onClick={() => setSelectedEvent(event)}
+                        onClick={async () => {
+                          // Fetch full event data to ensure relatedPersonIds is populated
+                          try {
+                            const response = await fetch(`/api/admin/events?id=${event.id}`);
+                            const data = await response.json();
+                            if (data.event) {
+                              setSelectedEvent(data.event);
+                            } else {
+                              setSelectedEvent(event);
+                            }
+                          } catch (error) {
+                            console.error('Error loading event details:', error);
+                            setSelectedEvent(event);
+                          }
+                        }}
                         className="text-left text-sm font-medium text-brand-black hover:text-brand-gold"
                       >
                         {event.eventTitle}
@@ -173,7 +199,21 @@ export default function EventsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
-                        onClick={() => setSelectedEvent(event)}
+                        onClick={async () => {
+                          // Fetch full event data to ensure relatedPersonIds is populated
+                          try {
+                            const response = await fetch(`/api/admin/events?id=${event.id}`);
+                            const data = await response.json();
+                            if (data.event) {
+                              setSelectedEvent(data.event);
+                            } else {
+                              setSelectedEvent(event);
+                            }
+                          } catch (error) {
+                            console.error('Error loading event details:', error);
+                            setSelectedEvent(event);
+                          }
+                        }}
                         className="text-brand-gold hover:text-brand-brown"
                       >
                         View
@@ -244,6 +284,47 @@ export default function EventsPage() {
                             return (
                               <div key={committeeId} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200">
                                 <span className="text-sm font-medium text-gray-900">{committee.name}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-700 mb-2">People & Partners</h3>
+                    {(() => {
+                      const peopleArray = Array.isArray(selectedEvent.relatedPersonIds) ? selectedEvent.relatedPersonIds : [];
+                      
+                      if (peopleArray.length === 0) {
+                        return <p className="text-sm text-gray-500">No people assigned</p>;
+                      }
+                      
+                      return (
+                        <div className="space-y-2">
+                          {peopleArray.map((personId) => {
+                            const person = people.find(p => p.id === personId);
+                            if (!person) return null;
+                            return (
+                              <div key={personId} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-gray-900">{person.name}</span>
+                                    <span className="text-xs text-gray-500">({person.role})</span>
+                                    {person.status && (
+                                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                                        person.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                                        person.status === 'Denied' ? 'bg-red-100 text-red-800' :
+                                        'bg-yellow-100 text-yellow-800'
+                                      }`}>
+                                        {person.status}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {person.email && (
+                                    <div className="text-xs text-gray-500 mt-1">{person.email}</div>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}

@@ -26,19 +26,24 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Event not found' }, { status: 404 });
       }
       
-      // Fix arrays that got converted to objects - ensure relatedCommitteeIds stays as array of strings only
+      // Fix arrays that got converted to objects - ensure relatedCommitteeIds and relatedPersonIds stay as arrays of strings only
       const rawCommitteeIds = Array.isArray(rawData?.relatedCommitteeIds) ? rawData.relatedCommitteeIds : [];
       const cleanCommitteeIds = rawCommitteeIds.filter((c: any) => typeof c === 'string');
+      
+      const rawPersonIds = Array.isArray(rawData?.relatedPersonIds) ? rawData.relatedPersonIds : [];
+      const cleanPersonIds = rawPersonIds.filter((p: any) => typeof p === 'string');
       
       const event = {
         ...converted,
         relatedCommitteeIds: cleanCommitteeIds,
+        relatedPersonIds: cleanPersonIds,
       };
       
       // If we cleaned up corrupted data, update the document
-      if (cleanCommitteeIds.length !== rawCommitteeIds.length) {
+      if (cleanCommitteeIds.length !== rawCommitteeIds.length || cleanPersonIds.length !== rawPersonIds.length) {
         await adminDb.collection('events').doc(id).update({
           relatedCommitteeIds: cleanCommitteeIds,
+          relatedPersonIds: cleanPersonIds,
           updatedAt: Timestamp.fromDate(new Date()),
         });
       }
@@ -128,6 +133,7 @@ export async function POST(request: NextRequest) {
       participantCriteria: eventData.participantCriteria,
       compensationOffered: eventData.compensationOffered,
       relatedCommitteeIds: eventData.relatedCommitteeIds,
+      relatedPersonIds: eventData.relatedPersonIds,
     };
 
     const eventId = await createEvent(newEvent);
@@ -153,6 +159,33 @@ export async function POST(request: NextRequest) {
             }
           } catch (error) {
             console.error(`Error linking event ${eventId} to committee ${committeeId}:`, error);
+          }
+        }
+      }
+    }
+
+    // Link event to people bidirectionally
+    if (eventData.relatedPersonIds && Array.isArray(eventData.relatedPersonIds) && eventData.relatedPersonIds.length > 0) {
+      const { adminDb } = await import('@/lib/firebase/admin');
+      if (adminDb) {
+        for (const personId of eventData.relatedPersonIds) {
+          if (typeof personId !== 'string') continue;
+          try {
+            const personRef = adminDb.collection('people').doc(personId);
+            const personDoc = await personRef.get();
+            if (personDoc.exists) {
+              const personData = personDoc.data();
+              const relatedEventIds = Array.isArray(personData?.relatedEventIds) ? personData.relatedEventIds : [];
+              if (!relatedEventIds.includes(eventId)) {
+                relatedEventIds.push(eventId);
+                await personRef.update({
+                  relatedEventIds,
+                  updatedAt: Timestamp.fromDate(new Date()),
+                });
+              }
+            }
+          } catch (error) {
+            console.error(`Error linking event ${eventId} to person ${personId}:`, error);
           }
         }
       }
@@ -250,6 +283,72 @@ export async function PATCH(request: NextRequest) {
             }
           } catch (error) {
             console.error(`Error linking event ${id} to committee ${committeeId}:`, error);
+          }
+        }
+      }
+    }
+
+    // Handle bidirectional linking with people if relatedPersonIds changed
+    if (updates.relatedPersonIds !== undefined) {
+      // Ensure relatedPersonIds is an array of strings
+      const newPersonIds = Array.isArray(updates.relatedPersonIds) 
+        ? updates.relatedPersonIds.filter((p: any) => typeof p === 'string')
+        : [];
+      
+      // Update the updates object to use the filtered array
+      updates.relatedPersonIds = newPersonIds;
+      
+      // Remove event from old people
+      for (const personId of oldPersonIds) {
+        if (typeof personId !== 'string') {
+          console.error('Invalid person ID (not a string):', personId);
+          continue;
+        }
+        
+        if (!newPersonIds.includes(personId)) {
+          try {
+            const personRef = adminDb.collection('people').doc(personId);
+            const personDoc = await personRef.get();
+            if (personDoc.exists) {
+              const personData = personDoc.data();
+              const relatedEventIds = Array.isArray(personData?.relatedEventIds) 
+                ? personData.relatedEventIds.filter((eid: string) => eid !== id)
+                : [];
+              await personRef.update({
+                relatedEventIds,
+                updatedAt: Timestamp.fromDate(new Date()),
+              });
+            }
+          } catch (error) {
+            console.error(`Error unlinking event ${id} from person ${personId}:`, error);
+          }
+        }
+      }
+      
+      // Add event to new people
+      for (const personId of newPersonIds) {
+        if (typeof personId !== 'string') {
+          console.error('Invalid person ID (not a string):', personId);
+          continue;
+        }
+        
+        if (!oldPersonIds.includes(personId)) {
+          try {
+            const personRef = adminDb.collection('people').doc(personId);
+            const personDoc = await personRef.get();
+            if (personDoc.exists) {
+              const personData = personDoc.data();
+              const relatedEventIds = Array.isArray(personData?.relatedEventIds) ? personData.relatedEventIds : [];
+              if (!relatedEventIds.includes(id)) {
+                relatedEventIds.push(id);
+                await personRef.update({
+                  relatedEventIds,
+                  updatedAt: Timestamp.fromDate(new Date()),
+                });
+              }
+            }
+          } catch (error) {
+            console.error(`Error linking event ${id} to person ${personId}:`, error);
           }
         }
       }
