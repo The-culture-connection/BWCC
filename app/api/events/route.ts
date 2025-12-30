@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEvents } from '@/lib/firebase/db';
 
+// Force dynamic rendering to prevent caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const includePrivate = searchParams.get('private') === 'true';
 
     // Get events from Firebase
-    const allEvents = await getEvents({ status: 'Approved' });
-    
-    // Filter events based on privacy
-    let events = allEvents;
-    if (!includePrivate) {
-      events = allEvents.filter(event => event.isPublicEvent);
+    // For public calendar: status="Approved" AND isPublicEvent=true
+    // For private calendar: all events
+    let events;
+    if (includePrivate) {
+      // Private: fetch all events
+      events = await getEvents();
+    } else {
+      // Public: fetch all events, then filter for Approved + isPublicEvent=true
+      const allEvents = await getEvents();
+      events = allEvents.filter(event => 
+        event.status === 'Approved' && event.isPublicEvent === true
+      );
     }
 
     // Transform to simplified event format

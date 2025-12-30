@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, MapPin, Clock, ChevronLeft, ChevronRight, X, Copy, Check } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, getDay, isValid } from 'date-fns';
+import { getCalendarFeedUrl } from '@/lib/utils/get-base-url';
 
 interface Event {
   id: string;
@@ -33,11 +34,17 @@ export default function EventCalendar() {
     try {
       setLoading(true);
       setError('');
-      const response = await fetch('/api/events?private=false');
+      // Fetch public events only (status=Approved AND isPublicEvent=true)
+      const response = await fetch('/api/events?private=false', {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       const data = await response.json();
 
       if (response.ok) {
-        setEvents(data.events);
+        setEvents(data.events || []);
       } else {
         setError(data.error || 'Failed to load events');
       }
@@ -48,17 +55,9 @@ export default function EventCalendar() {
     }
   };
 
-  const getCalendarFeedUrl = (): string => {
-    // Client-side: use window.location
-    if (typeof window !== 'undefined') {
-      return `${window.location.origin}/api/calendar/feed`;
-    }
-    // Fallback (shouldn't happen in client component)
-    return '/api/calendar/feed';
-  };
 
   const copyFeedUrl = async () => {
-    const url = getCalendarFeedUrl();
+    const url = getCalendarFeedUrl(subscribeType === 'private');
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -68,73 +67,28 @@ export default function EventCalendar() {
     }
   };
 
-  const handleDirectSubscribe = (type: 'public' | 'private') => {
-    const url = getCalendarFeedUrl();
+  const handleSubscribeToCalendar = async (type: 'public' | 'private') => {
+    // Get the calendar feed URL (public or private)
+    const url = getCalendarFeedUrl(type === 'private');
     
-    // Try multiple methods to make it as automatic as possible
-    // Method 1: Use webcal:// protocol for desktop calendar apps
     try {
-      const webcalUrl = url.replace(/^https?:\/\//, 'webcal://');
-      window.location.href = webcalUrl;
-      
-      // If webcal doesn't work (e.g., on Google Calendar web), fall back after a short delay
-      setTimeout(() => {
-        handleGoogleCalendarSubscribe(type);
-      }, 500);
-    } catch (err) {
-      // Fallback to Google Calendar method
-      handleGoogleCalendarSubscribe(type);
-    }
-  };
-
-  const handleGoogleCalendarSubscribe = async (type: 'public' | 'private') => {
-    const url = getCalendarFeedUrl();
-    
-    // Open modal first
-    setSubscribeType(type);
-    setShowSubscribeModal(true);
-    
-    // Try to auto-copy URL
-    try {
+      // Copy the calendar feed URL to clipboard
       await navigator.clipboard.writeText(url);
       setCopied(true);
+      
+      // Open Google Calendar "Add by URL" page in a new tab
+      window.open('https://calendar.google.com/calendar/u/0/r/settings/addbyurl', '_blank');
+      
+      // Show modal with instructions
+      setSubscribeType(type);
+      setShowSubscribeModal(true);
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);
+      // If clipboard copy fails, still open the modal and Google Calendar
+      setSubscribeType(type);
+      setShowSubscribeModal(true);
+      window.open('https://calendar.google.com/calendar/u/0/r/settings/addbyurl', '_blank');
     }
-    
-    // Open Google Calendar "Add by URL" page
-    // The cid parameter method doesn't work reliably, so we use the direct addbyurl page
-    window.open('https://calendar.google.com/calendar/r/settings/addbyurl', '_blank');
-  };
-
-  const handleAddToGoogleCalendar = (type: 'public' | 'private') => {
-    const url = getCalendarFeedUrl();
-    
-    // Try multiple Google Calendar subscription methods
-    // Method 1: Direct URL subscription (most reliable)
-    const directUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(url)}`;
-    
-    // Method 2: If URL has query params, we might need to handle it differently
-    // Convert http/https to webcal for better compatibility
-    const webcalUrl = url.replace(/^https?:\/\//, 'webcal://');
-    const googleCalendarWebcal = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`;
-    
-    // Try the direct method first
-    const newWindow = window.open(directUrl, '_blank');
-    
-    // If popup is blocked or fails, try webcal version
-    setTimeout(() => {
-      if (!newWindow || newWindow.closed) {
-        window.open(googleCalendarWebcal, '_blank');
-      }
-    }, 500);
-    
-    // Fallback: Open addbyurl page
-    setTimeout(() => {
-      if (!newWindow || newWindow.closed) {
-        window.open('https://calendar.google.com/calendar/r/settings/addbyurl', '_blank');
-      }
-    }, 1500);
   };
 
   const previousMonth = () => {
@@ -199,7 +153,7 @@ export default function EventCalendar() {
           {/* Subscribe Button */}
           <div className="flex flex-wrap justify-center gap-4 mb-8">
             <button
-              onClick={() => handleDirectSubscribe('public')}
+              onClick={() => handleSubscribeToCalendar('public')}
               className="bg-brand-gold text-brand-black px-6 py-3 rounded-lg hover:bg-brand-brown hover:text-white transition-colors font-secondary font-semibold flex items-center gap-2"
             >
               <Calendar size={20} />
@@ -375,50 +329,56 @@ export default function EventCalendar() {
               <p className="text-brand-black/80 font-secondary mb-6">
                 {copied ? (
                   <span className="text-green-600 font-semibold">
-                    ✓ Google Calendar should be open in a new tab. If you see a subscription prompt, click &quot;Add&quot; or &quot;Subscribe&quot;.
+                    ✓ The calendar feed URL has been copied to your clipboard and Google Calendar should be open in a new tab.
                     <br /><br />
-                    If not, the calendar URL is copied - just paste it (Ctrl+V or Cmd+V) in the Google Calendar subscription page.
+                    <strong>Next steps:</strong>
+                    <ol className="list-decimal list-inside mt-2 space-y-1">
+                      <li>In the Google Calendar page, paste the URL (Ctrl+V or Cmd+V) in the &quot;URL of calendar&quot; field</li>
+                      <li>Click &quot;Add calendar&quot;</li>
+                      <li>The calendar will automatically sync and update when new events are added</li>
+                    </ol>
                   </span>
                 ) : (
-                  'Google Calendar is opening in a new tab. If prompted, click &quot;Add&quot; to subscribe to the calendar.'
+                  'Google Calendar is opening in a new tab. The calendar feed URL will be copied to your clipboard.'
                 )}
               </p>
 
               {/* Feed URL Display */}
               <div className="bg-brand-cream rounded-lg p-4 mb-6">
-                <p className="text-sm text-brand-black/70 font-secondary mb-2">Calendar Feed URL:</p>
+                <p className="text-sm text-brand-black/70 font-secondary mb-2 font-semibold">Calendar Feed URL (already copied to clipboard):</p>
                 <div className="flex items-start gap-2 mb-2">
-                  <code className="text-xs font-mono text-brand-black break-all flex-1">
-                    {getCalendarFeedUrl()}
+                  <code className="text-xs font-mono text-brand-black break-all flex-1 bg-white p-2 rounded border">
+                    {getCalendarFeedUrl(subscribeType === 'private')}
                   </code>
                   <button
                     onClick={copyFeedUrl}
                     className="p-2 bg-brand-gold text-brand-black rounded-lg hover:bg-brand-brown hover:text-white transition-colors flex items-center gap-2 flex-shrink-0"
-                    title="Copy URL"
+                    title="Copy URL again"
                   >
                     {copied ? <Check size={18} /> : <Copy size={18} />}
                   </button>
                 </div>
+                <p className="text-xs text-brand-black/60 font-secondary mt-2">
+                  This calendar will automatically update when new events are added to the website.
+                </p>
               </div>
 
-              {/* Big Add Button */}
+              {/* Instructions */}
               <div className="flex flex-col items-center gap-4">
-                <button
-                  onClick={() => {
-                    // Open the "Add calendar by URL" page - most reliable method
-                    // Google Calendar's cid parameter doesn't work reliably with custom feeds
-                    window.open('https://calendar.google.com/calendar/r/settings/addbyurl', '_blank');
-                  }}
-                  className="bg-brand-gold text-brand-black px-8 py-4 rounded-lg hover:bg-brand-brown hover:text-white transition-colors font-secondary font-bold text-lg flex items-center gap-2 shadow-lg"
-                >
-                  <Calendar size={24} />
-                  Open Google Calendar
-                </button>
-                <p className="text-sm text-brand-black/60 font-secondary text-center max-w-md">
-                  Click the button above to open Google Calendar. 
-                  <br />
-                  The URL is already copied! Just press <kbd className="px-1.5 py-0.5 bg-brand-cream rounded text-xs">Ctrl+V</kbd> (or <kbd className="px-1.5 py-0.5 bg-brand-cream rounded text-xs">Cmd+V</kbd> on Mac) in the &quot;URL of calendar&quot; field, then click &quot;Add calendar&quot;.
-                </p>
+                <div className="bg-brand-tan/30 rounded-lg p-4 w-full">
+                  <p className="text-sm text-brand-black/80 font-secondary text-center">
+                    <strong>Can&apos;t find the Google Calendar page?</strong>
+                    <br />
+                    <a
+                      href="https://calendar.google.com/calendar/u/0/r/settings/addbyurl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-brand-gold hover:text-brand-brown underline font-semibold mt-2 inline-block"
+                    >
+                      Click here to open Google Calendar
+                    </a>
+                  </p>
+                </div>
               </div>
             </motion.div>
           </div>

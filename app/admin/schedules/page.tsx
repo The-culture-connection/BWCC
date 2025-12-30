@@ -2,11 +2,12 @@
 
 import AdminLayout from '@/components/AdminLayout';
 import { useEffect, useState } from 'react';
-import { Schedule } from '@/lib/types/database';
+import { Schedule, Event } from '@/lib/types/database';
 import { getCurrentUser } from '@/lib/firebase/auth';
 import { getCalendarFeedUrl } from '@/lib/utils/get-base-url';
 
 export default function SchedulesPage() {
+  const [events, setEvents] = useState<Event[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -22,12 +23,22 @@ export default function SchedulesPage() {
   });
 
   useEffect(() => {
+    loadEvents();
     loadSchedules();
   }, []);
 
+  const loadEvents = async () => {
+    try {
+      const response = await fetch('/api/admin/events');
+      const data = await response.json();
+      setEvents(data.events || []);
+    } catch (error) {
+      console.error('Error loading events:', error);
+    }
+  };
+
   const loadSchedules = async () => {
     try {
-      setLoading(true);
       const response = await fetch('/api/admin/schedules');
       const data = await response.json();
       setSchedules(data.schedules || []);
@@ -35,6 +46,26 @@ export default function SchedulesPage() {
       console.error('Error loading schedules:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubscribeToPrivateCalendar = async () => {
+    const url = getCalendarFeedUrl(true);
+    
+    try {
+      // Copy the calendar feed URL to clipboard
+      await navigator.clipboard.writeText(url);
+      
+      // Open Google Calendar "Add by URL" page in a new tab
+      window.open('https://calendar.google.com/calendar/u/0/r/settings/addbyurl', '_blank');
+      
+      // Show success message
+      alert('Calendar feed URL copied to clipboard! Google Calendar should be open in a new tab.\n\nNext steps:\n1. Paste the URL (Ctrl+V or Cmd+V) in the "URL of calendar" field\n2. Click "Add calendar"\n3. The calendar will automatically sync and update when new events are added');
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+      // If clipboard copy fails, still open Google Calendar
+      window.open('https://calendar.google.com/calendar/u/0/r/settings/addbyurl', '_blank');
+      alert('Google Calendar is opening in a new tab. Please manually copy the calendar feed URL from above and paste it in Google Calendar.');
     }
   };
 
@@ -64,10 +95,45 @@ export default function SchedulesPage() {
     }
   };
 
-  const filteredSchedules = schedules.filter(schedule => {
-    const scheduleDate = new Date(schedule.startTime).toISOString().split('T')[0];
-    return scheduleDate === selectedDate;
-  });
+  // Combine events and schedules, then filter by selected date
+  const allItems = [
+    ...events.map(event => ({
+      id: event.id || '',
+      title: event.eventTitle,
+      description: event.description || event.purpose || '',
+      startTime: event.startTime || event.date || new Date(),
+      endTime: event.endTime,
+      location: event.location || '',
+      type: 'event' as const,
+      isPrivate: false,
+      status: event.status,
+      eventType: event.eventType,
+    })),
+    ...schedules.map(schedule => ({
+      id: schedule.id || '',
+      title: schedule.title,
+      description: schedule.description || '',
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      location: schedule.location || '',
+      type: schedule.type,
+      isPrivate: schedule.isPrivate,
+      status: undefined,
+      eventType: undefined,
+    })),
+  ];
+
+  // Filter by selected date and sort by start time
+  const filteredItems = allItems
+    .filter(item => {
+      const itemDate = new Date(item.startTime).toISOString().split('T')[0];
+      return itemDate === selectedDate;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.startTime).getTime();
+      const timeB = new Date(b.startTime).getTime();
+      return timeA - timeB;
+    });
 
   return (
     <AdminLayout>
@@ -75,14 +141,12 @@ export default function SchedulesPage() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-brand-black">Schedules</h1>
           <div className="flex gap-4">
-            <a
-              href={getCalendarFeedUrl(true)}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={handleSubscribeToPrivateCalendar}
               className="px-4 py-2 bg-brand-brown text-white rounded-lg hover:bg-brand-gold hover:text-brand-black font-medium flex items-center gap-2"
             >
               📅 Subscribe to Private Calendar
-            </a>
+            </button>
             <button
               onClick={() => setShowCreateModal(true)}
               className="px-4 py-2 bg-brand-gold text-brand-black rounded-lg hover:bg-brand-tan font-medium"
@@ -97,13 +161,16 @@ export default function SchedulesPage() {
           <h2 className="text-xl font-bold text-brand-black mb-2">Private Calendar Subscription</h2>
           <p className="text-gray-700 mb-4">
             Subscribe to the private calendar to automatically receive all private events, meetings, and schedules.
-            Click the button above or copy the URL below to add to your calendar application.
+            The calendar feed URL will be copied to your clipboard, and Google Calendar will open for you to paste and subscribe.
           </p>
           <div className="bg-white rounded-lg p-4">
             <p className="text-sm text-gray-600 mb-2 font-medium">Calendar Feed URL:</p>
             <code className="text-xs bg-gray-100 p-2 rounded block break-all">
               {getCalendarFeedUrl(true)}
             </code>
+            <p className="text-xs text-gray-500 mt-2">
+              This calendar will automatically update when new events are added to the website.
+            </p>
           </div>
         </div>
 
@@ -118,37 +185,53 @@ export default function SchedulesPage() {
           />
         </div>
 
-        {/* Schedules List */}
+        {/* Events and Schedules List */}
         {loading ? (
           <div className="text-center py-8">Loading...</div>
         ) : (
           <div className="bg-white rounded-lg shadow">
-            {filteredSchedules.length === 0 ? (
+            {filteredItems.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
-                No schedule items for this date
+                No events or schedule items for this date
               </div>
             ) : (
               <div className="divide-y divide-gray-200">
-                {filteredSchedules.map((schedule) => (
-                  <div key={schedule.id} className="p-6 hover:bg-gray-50">
+                {filteredItems.map((item) => (
+                  <div key={item.id} className="p-6 hover:bg-gray-50">
                     <div className="flex justify-between items-start">
-                      <div>
+                      <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-brand-black">{schedule.title}</h3>
-                          {schedule.isPrivate && (
+                          <h3 className="text-lg font-semibold text-brand-black">{item.title}</h3>
+                          {item.type === 'event' && (item as any).status && (
+                            <span className={`px-2 py-1 text-xs rounded ${
+                              (item as any).status === 'Approved' 
+                                ? 'bg-green-100 text-green-800' 
+                                : (item as any).status === 'Pending'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {(item as any).status}
+                            </span>
+                          )}
+                          {(item as any).eventType && (
+                            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                              {(item as any).eventType}
+                            </span>
+                          )}
+                          {item.isPrivate && (
                             <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded">Private</span>
                           )}
-                          <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">{schedule.type}</span>
+                          <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded capitalize">{item.type}</span>
                         </div>
                         <p className="text-gray-600 mb-2">
-                          {new Date(schedule.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          {schedule.endTime && ` - ${new Date(schedule.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                          {new Date(item.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {item.endTime && ` - ${new Date(item.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
                         </p>
-                        {schedule.location && (
-                          <p className="text-sm text-gray-500 mb-2">📍 {schedule.location}</p>
+                        {item.location && (
+                          <p className="text-sm text-gray-500 mb-2">📍 {item.location}</p>
                         )}
-                        {schedule.description && (
-                          <p className="text-gray-700">{schedule.description}</p>
+                        {item.description && (
+                          <p className="text-gray-700">{item.description}</p>
                         )}
                       </div>
                     </div>

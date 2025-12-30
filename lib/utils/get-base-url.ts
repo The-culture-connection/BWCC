@@ -35,7 +35,7 @@ export function getBaseUrl(): string {
 export function getCalendarFeedUrl(isPrivate: boolean = false): string {
   const baseUrl = getBaseUrl();
   if (isPrivate) {
-    return `${baseUrl}/api/calendar/feed?private=true`;
+    return `${baseUrl}/api/calendar/feed?private=true&password=BWCC2025`;
   }
   return `${baseUrl}/api/calendar/feed`;
 }

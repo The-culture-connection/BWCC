@@ -5,6 +5,10 @@ import { adminDb } from '@/lib/firebase/admin';
 import { Meeting } from '@/lib/types/database';
 import { convertTimestamps } from '@/lib/firebase/db';
 
+// Force dynamic rendering to prevent caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Generate iCal feed for calendar subscription
 export async function GET(request: NextRequest) {
   try {
@@ -19,31 +23,46 @@ export async function GET(request: NextRequest) {
     let meetings: Meeting[] = [];
     
     if (includePrivate) {
-      // Private calendar shows ALL events + meetings (no password required)
-      events = await getEvents();
+      // Private calendar shows ALL events with status "Approved" + meetings
+      // Fetch all events, then filter for Approved status
+      if (!adminDb) throw new Error('Firebase Admin not initialized');
+      const eventsSnapshot = await adminDb.collection('events')
+        .orderBy('date', 'asc')
+        .get();
+      const allEvents = eventsSnapshot.docs.map(doc => 
+        convertTimestamps({ id: doc.id, ...doc.data() } as Event)
+      );
+      // Filter for Approved events only
+      events = allEvents.filter(event => event.status === 'Approved');
+      
       // Also fetch meetings for private calendar
-      if (adminDb) {
-        try {
-          const meetingsSnapshot = await adminDb.collection('meetings')
-            .orderBy('date', 'desc')
-            .get();
-          meetings = meetingsSnapshot.docs.map(doc => 
-            convertTimestamps({ id: doc.id, ...doc.data() } as Meeting)
-          );
-        } catch (error) {
-          console.error('Error fetching meetings for calendar:', error);
-        }
+      try {
+        const meetingsSnapshot = await adminDb.collection('meetings')
+          .orderBy('date', 'desc')
+          .get();
+        meetings = meetingsSnapshot.docs.map(doc => 
+          convertTimestamps({ id: doc.id, ...doc.data() } as Meeting)
+        );
+      } catch (error) {
+        console.error('Error fetching meetings for calendar:', error);
       }
     } else {
       // Public calendar: only approved + public events (no meetings)
-      const allEvents = await getEvents();
+      // Fetch events that are both Approved and isPublicEvent === true
+      if (!adminDb) throw new Error('Firebase Admin not initialized');
+      const allEventsSnapshot = await adminDb.collection('events')
+        .orderBy('date', 'asc')
+        .get();
+      const allEvents = allEventsSnapshot.docs.map(doc => 
+        convertTimestamps({ id: doc.id, ...doc.data() } as Event)
+      );
       events = allEvents.filter(event => 
         event.status === 'Approved' && event.isPublicEvent === true
       );
     }
     
     // Debug: Log number of events found
-    console.log(`Found ${events.length} events and ${meetings.length} meetings from Firebase${includePrivate ? ' (all events + meetings for private calendar)' : ' (approved + public events for public calendar)'}`);
+    console.log(`Found ${events.length} events and ${meetings.length} meetings from Firebase${includePrivate ? ' (approved events + meetings for private calendar)' : ' (approved + public events for public calendar)'}`);
 
     // Convert date string to EST timezone and format for iCal (without timezone offset when using TZID)
     const formatICSDateEST = (dateStr: string): string => {
@@ -110,22 +129,26 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    // Format date-only for iCal (no time, DATE format)
+    // Format date-only for iCal (no time, DATE format) in Eastern timezone
     const formatICSDateOnly = (dateStr: string): string => {
       if (!dateStr) return '';
-      // Extract just the date part (YYYY-MM-DD)
-      const dateOnly = dateStr.split('T')[0];
-      if (dateOnly && /^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
-        return dateOnly.replace(/-/g, '');
-      }
       try {
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return '';
-        // Convert to EST and get date only
-        const estDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-        const year = estDate.getFullYear();
-        const month = String(estDate.getMonth() + 1).padStart(2, '0');
-        const day = String(estDate.getDate()).padStart(2, '0');
+        
+        // Convert to Eastern Time and get date components
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/New_York',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        });
+        
+        const parts = formatter.formatToParts(date);
+        const year = parts.find(p => p.type === 'year')?.value || '';
+        const month = parts.find(p => p.type === 'month')?.value || '';
+        const day = parts.find(p => p.type === 'day')?.value || '';
+        
         return `${year}${month}${day}`;
       } catch (error) {
         return '';
@@ -133,7 +156,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Determine calendar name - ensure consistent formatting
-    const calendarName = includePrivate ? 'BWCC - Private' : 'BWCC - Public';
+    const calendarName = includePrivate ? 'BWCCcal-private' : 'BWCCcal-public';
     const calendarDesc = includePrivate 
       ? 'Black Women Cultivating Change - Private Events Calendar (includes all events and meetings)' 
       : 'Black Women Cultivating Change - Public Events Calendar (approved public events only)';
@@ -198,11 +221,11 @@ export async function GET(request: NextRequest) {
       icsContent += `END:VCALENDAR${crlf}`;
       return new NextResponse(icsContent, {
         headers: {
-          'Content-Type': 'text/calendar; charset=utf-8',
-          'Content-Disposition': 'inline; filename="bwcc-events.ics"',
-          'Cache-Control': 'public, max-age=3600, must-revalidate', // Cache for 1 hour, then revalidate
-          'Access-Control-Allow-Origin': '*', // Allow calendar subscriptions from any domain
-          'Access-Control-Allow-Methods': 'GET',
+        'Content-Type': 'text/calendar; charset=utf-8',
+        'Content-Disposition': 'inline; filename="bwcc-events.ics"',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate', // Prevent caching for dynamic updates
+        'Access-Control-Allow-Origin': '*', // Allow calendar subscriptions from any domain
+        'Access-Control-Allow-Methods': 'GET',
         },
       });
     }
@@ -219,11 +242,27 @@ export async function GET(request: NextRequest) {
         return;
       }
       
-      let startDate = startDateObj instanceof Date ? startDateObj.toISOString() : new Date(startDateObj).toISOString();
+      // Convert to Date object and then to ISO string
+      // The date is stored in Firestore, so we need to handle it properly
+      let startDateParsed: Date;
+      if (startDateObj instanceof Date) {
+        startDateParsed = startDateObj;
+      } else {
+        startDateParsed = new Date(startDateObj);
+      }
+      const startDate = startDateParsed.toISOString();
       const startDateType = event.startTime ? 'datetime' : (event.date ? 'date' : null);
       
       // Get end date/time
-      let endDate = event.endTime ? (event.endTime instanceof Date ? event.endTime.toISOString() : new Date(event.endTime).toISOString()) : '';
+      let endDateParsed: Date | null = null;
+      if (event.endTime) {
+        if (event.endTime instanceof Date) {
+          endDateParsed = event.endTime;
+        } else {
+          endDateParsed = new Date(event.endTime);
+        }
+      }
+      const endDate = endDateParsed ? endDateParsed.toISOString() : '';
       
       // Double-check public filter (should already be filtered, but just in case)
       if (!includePrivate && !event.isPublicEvent) {
@@ -341,11 +380,26 @@ export async function GET(request: NextRequest) {
         return;
       }
       
-      let startDate = startDateObj instanceof Date ? startDateObj.toISOString() : new Date(startDateObj).toISOString();
+      // Convert to Date object and then to ISO string
+      let startDateParsed: Date;
+      if (startDateObj instanceof Date) {
+        startDateParsed = startDateObj;
+      } else {
+        startDateParsed = new Date(startDateObj);
+      }
+      const startDate = startDateParsed.toISOString();
       const startDateType = meeting.startTime ? 'datetime' : (meeting.date ? 'date' : null);
       
       // Get end date/time
-      let endDate = meeting.endTime ? (meeting.endTime instanceof Date ? meeting.endTime.toISOString() : new Date(meeting.endTime).toISOString()) : '';
+      let endDateParsed: Date | null = null;
+      if (meeting.endTime) {
+        if (meeting.endTime instanceof Date) {
+          endDateParsed = meeting.endTime;
+        } else {
+          endDateParsed = new Date(meeting.endTime);
+        }
+      }
+      const endDate = endDateParsed ? endDateParsed.toISOString() : '';
       
       console.log(`Processing meeting: ${title}, Start: ${startDate}, End: ${endDate || 'none'}`);
       
@@ -444,7 +498,7 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'text/calendar; charset=utf-8',
         'Content-Disposition': `inline; filename="${calendarName.replace(/\s+/g, '-').toLowerCase()}.ics"`,
-        'Cache-Control': 'public, max-age=3600, must-revalidate', // Cache for 1 hour, then revalidate
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate', // Prevent caching for dynamic updates
         'Access-Control-Allow-Origin': '*', // Allow calendar subscriptions from any domain
         'Access-Control-Allow-Methods': 'GET',
       },
