@@ -104,7 +104,10 @@ export default function CommitteesPage() {
       const response = await fetch('/api/admin/events');
       const data = await response.json();
       const allEvents = data.events || [];
-      setCommitteeEvents(allEvents.filter((event: Event) => event.relatedCommitteeIds?.includes(committeeId)));
+      setCommitteeEvents(allEvents.filter((event: Event) => {
+        const committeesArray = Array.isArray(event.relatedCommitteeIds) ? event.relatedCommitteeIds : [];
+        return committeesArray.includes(committeeId);
+      }));
     } catch (error) {
       console.error('Error loading committee events:', error);
     }

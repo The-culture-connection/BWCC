@@ -11,6 +11,7 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<{ status?: string }>({});
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [showManageCommitteesModal, setShowManageCommitteesModal] = useState(false);
 
   useEffect(() => {
     loadEvents();
@@ -59,28 +60,38 @@ export default function EventsPage() {
 
   const handleUpdateCommittees = async (id: string, relatedCommitteeIds: string[]) => {
     try {
-      console.log('[DEBUG] Updating event committees:', { id, relatedCommitteeIds });
+      // Ensure relatedCommitteeIds is an array of strings
+      const committeesArray = Array.isArray(relatedCommitteeIds) ? relatedCommitteeIds.filter(c => typeof c === 'string') : [];
+      
       const response = await fetch('/api/admin/events', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, relatedCommitteeIds: relatedCommitteeIds.length > 0 ? relatedCommitteeIds : [] }),
+        body: JSON.stringify({ id, relatedCommitteeIds: committeesArray }),
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('[DEBUG] Error response:', errorData);
         alert(`Error updating committees: ${errorData.error || 'Unknown error'}`);
         return;
       }
       
-      console.log('[DEBUG] Successfully updated event committees');
+      // Reload events to get fresh data
       await loadEvents();
+      
+      // Reload the selected event with fresh data
       if (selectedEvent?.id === id) {
-        const updated = events.find(e => e.id === id);
-        if (updated) setSelectedEvent({ ...updated, relatedCommitteeIds: relatedCommitteeIds.length > 0 ? relatedCommitteeIds : [] });
+        try {
+          const eventResponse = await fetch(`/api/admin/events?id=${id}`);
+          const eventData = await eventResponse.json();
+          if (eventData.event) {
+            setSelectedEvent(eventData.event);
+          }
+        } catch (error) {
+          console.error('Error reloading event:', error);
+        }
       }
     } catch (error) {
-      console.error('[DEBUG] Error updating event committees:', error);
+      console.error('Error updating event committees:', error);
       alert(`Error updating committees: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
@@ -217,21 +228,28 @@ export default function EventsPage() {
                     </div>
                     
                     {/* Current Committees List - View Only */}
-                    {selectedEvent.relatedCommitteeIds && selectedEvent.relatedCommitteeIds.length > 0 ? (
-                      <div className="space-y-2">
-                        {selectedEvent.relatedCommitteeIds.map((committeeId) => {
-                          const committee = committees.find(c => c.id === committeeId);
-                          if (!committee) return null;
-                          return (
-                            <div key={committeeId} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200">
-                              <span className="text-sm font-medium text-gray-900">{committee.name}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500">No committees assigned</p>
-                    )}
+                    {(() => {
+                      // Ensure relatedCommitteeIds is an array
+                      const committeesArray = Array.isArray(selectedEvent.relatedCommitteeIds) ? selectedEvent.relatedCommitteeIds : [];
+                      
+                      if (committeesArray.length === 0) {
+                        return <p className="text-sm text-gray-500">No committees assigned</p>;
+                      }
+                      
+                      return (
+                        <div className="space-y-2">
+                          {committeesArray.map((committeeId) => {
+                            const committee = committees.find(c => c.id === committeeId);
+                            if (!committee) return null;
+                            return (
+                              <div key={committeeId} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200">
+                                <span className="text-sm font-medium text-gray-900">{committee.name}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div>
@@ -293,30 +311,37 @@ export default function EventsPage() {
               {/* Current Committees */}
               <div className="mb-4">
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Current Committees</h4>
-                {selectedEvent.relatedCommitteeIds && selectedEvent.relatedCommitteeIds.length > 0 ? (
-                  <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                    {selectedEvent.relatedCommitteeIds.map((committeeId) => {
-                      const committee = committees.find(c => c.id === committeeId);
-                      if (!committee) return null;
-                      return (
-                        <div key={committeeId} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <span className="text-sm text-gray-900">{committee.name}</span>
-                          <button
-                            onClick={() => {
-                              const newCommittees = selectedEvent.relatedCommitteeIds?.filter(id => id !== committeeId) || [];
-                              handleUpdateCommittees(selectedEvent.id!, newCommittees);
-                            }}
-                            className="text-xs text-red-600 hover:text-red-800"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No committees assigned</p>
-                )}
+                {(() => {
+                  // Ensure relatedCommitteeIds is an array
+                  const committeesArray = Array.isArray(selectedEvent.relatedCommitteeIds) ? selectedEvent.relatedCommitteeIds : [];
+                  
+                  if (committeesArray.length === 0) {
+                    return <p className="text-sm text-gray-500">No committees assigned</p>;
+                  }
+                  
+                  return (
+                    <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                      {committeesArray.map((committeeId) => {
+                        const committee = committees.find(c => c.id === committeeId);
+                        if (!committee) return null;
+                        return (
+                          <div key={committeeId} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                            <span className="text-sm text-gray-900">{committee.name}</span>
+                            <button
+                              onClick={() => {
+                                const newCommittees = committeesArray.filter(id => id !== committeeId);
+                                handleUpdateCommittees(selectedEvent.id!, newCommittees);
+                              }}
+                              className="text-xs text-red-600 hover:text-red-800"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
               
               {/* Available Committees to Add */}
@@ -327,12 +352,15 @@ export default function EventsPage() {
                     <p className="text-sm text-gray-500">No committees available</p>
                   ) : (
                     committees
-                      .filter(c => !selectedEvent.relatedCommitteeIds?.includes(c.id))
+                      .filter(c => {
+                        const committeesArray = Array.isArray(selectedEvent.relatedCommitteeIds) ? selectedEvent.relatedCommitteeIds : [];
+                        return !committeesArray.includes(c.id);
+                      })
                       .map((committee) => (
                         <button
                           key={committee.id}
                           onClick={() => {
-                            const currentCommittees = selectedEvent.relatedCommitteeIds || [];
+                            const currentCommittees = Array.isArray(selectedEvent.relatedCommitteeIds) ? selectedEvent.relatedCommitteeIds : [];
                             handleUpdateCommittees(selectedEvent.id!, [...currentCommittees, committee.id]);
                           }}
                           className="w-full text-left p-2 hover:bg-gray-50 rounded text-sm text-gray-900"

@@ -12,19 +12,82 @@ export async function GET(request: NextRequest) {
     const id = searchParams.get('id');
 
     if (id) {
-      const event = await getEvent(id);
-      if (!event) {
+      if (!adminDb) throw new Error('Firebase Admin not initialized');
+      
+      const doc = await adminDb.collection('events').doc(id).get();
+      if (!doc.exists) {
         return NextResponse.json({ error: 'Event not found' }, { status: 404 });
       }
+      
+      const rawData = doc.data();
+      const converted = await getEvent(id);
+      
+      if (!converted) {
+        return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+      }
+      
+      // Fix arrays that got converted to objects - ensure relatedCommitteeIds stays as array of strings only
+      const rawCommitteeIds = Array.isArray(rawData?.relatedCommitteeIds) ? rawData.relatedCommitteeIds : [];
+      const cleanCommitteeIds = rawCommitteeIds.filter((c: any) => typeof c === 'string');
+      
+      const event = {
+        ...converted,
+        relatedCommitteeIds: cleanCommitteeIds,
+      };
+      
+      // If we cleaned up corrupted data, update the document
+      if (cleanCommitteeIds.length !== rawCommitteeIds.length) {
+        await adminDb.collection('events').doc(id).update({
+          relatedCommitteeIds: cleanCommitteeIds,
+          updatedAt: Timestamp.fromDate(new Date()),
+        });
+      }
+      
       return NextResponse.json({ event }, { status: 200 });
     }
 
-    const events = await getEvents({
-      status: status || undefined,
-      isPublic: isPublic === 'true' ? true : isPublic === 'false' ? false : undefined,
-    });
+    if (!adminDb) throw new Error('Firebase Admin not initialized');
+    
+    let query: any = adminDb.collection('events');
+    
+    if (status) {
+      query = query.where('status', '==', status);
+    }
+    if (isPublic === 'true') {
+      query = query.where('isPublicEvent', '==', true);
+    } else if (isPublic === 'false') {
+      query = query.where('isPublicEvent', '==', false);
+    }
+    
+    const snapshot = await query.orderBy('date', 'asc').get();
+    
+    // Fix arrays that got converted to objects - clean up corrupted data
+    const events = await Promise.all(snapshot.docs.map(async (doc) => {
+      const rawData = doc.data();
+      const converted = await getEvent(doc.id);
+      if (!converted) return null;
+      
+      // Clean up relatedCommitteeIds - filter out any objects, keep only strings
+      const rawCommitteeIds = Array.isArray(rawData?.relatedCommitteeIds) ? rawData.relatedCommitteeIds : [];
+      const cleanCommitteeIds = rawCommitteeIds.filter((c: any) => typeof c === 'string');
+      
+      // If we cleaned up corrupted data, update the document
+      if (cleanCommitteeIds.length !== rawCommitteeIds.length) {
+        await adminDb.collection('events').doc(doc.id).update({
+          relatedCommitteeIds: cleanCommitteeIds,
+          updatedAt: Timestamp.fromDate(new Date()),
+        });
+      }
+      
+      return {
+        ...converted,
+        relatedCommitteeIds: cleanCommitteeIds,
+      };
+    }));
+    
+    const cleanEvents = events.filter((e): e is Event => e !== null);
 
-    return NextResponse.json({ events }, { status: 200 });
+    return NextResponse.json({ events: cleanEvents }, { status: 200 });
   } catch (error: any) {
     console.error('Error fetching events:', error);
     return NextResponse.json(
@@ -113,73 +176,93 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Event ID is required' }, { status: 400 });
     }
 
-    // Get current event to check for committee changes
-    const currentEvent = await getEvent(id);
+    if (!adminDb) throw new Error('Firebase Admin not initialized');
+
+    // Get current event data from raw Firestore to avoid array conversion issues
+    const currentDoc = await adminDb.collection('events').doc(id).get();
+    if (!currentDoc.exists) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
     
-    await updateEvent(id, updates);
+    const currentRawData = currentDoc.data();
+    // Ensure oldCommitteeIds is an array of strings (filter out any objects)
+    const oldCommitteeIdsRaw = Array.isArray(currentRawData?.relatedCommitteeIds) ? currentRawData.relatedCommitteeIds : [];
+    const oldCommitteeIds = oldCommitteeIdsRaw.filter((c: any) => typeof c === 'string');
 
     // Handle bidirectional linking with committees if relatedCommitteeIds changed
-    if (updates.relatedCommitteeIds !== undefined && adminDb) {
-      console.log('[DEBUG] Updating event-committee links for event:', id);
-      const oldCommitteeIds = currentEvent?.relatedCommitteeIds || [];
-      const newCommitteeIds = Array.isArray(updates.relatedCommitteeIds) ? updates.relatedCommitteeIds : [];
+    if (updates.relatedCommitteeIds !== undefined) {
+      // Ensure relatedCommitteeIds is an array of strings
+      const newCommitteeIds = Array.isArray(updates.relatedCommitteeIds) 
+        ? updates.relatedCommitteeIds.filter(c => typeof c === 'string')
+        : [];
       
-      console.log('[DEBUG] Old committee IDs:', oldCommitteeIds);
-      console.log('[DEBUG] New committee IDs:', newCommitteeIds);
+      // Update the updates object to use the filtered array
+      updates.relatedCommitteeIds = newCommitteeIds;
       
       // Remove event from old committees
       for (const committeeId of oldCommitteeIds) {
+        if (typeof committeeId !== 'string') {
+          console.error('Invalid committee ID (not a string):', committeeId);
+          continue;
+        }
+        
         if (!newCommitteeIds.includes(committeeId)) {
           try {
-            console.log(`[DEBUG] Removing event ${id} from committee ${committeeId}`);
             const committeeRef = adminDb.collection('committees').doc(committeeId);
             const committeeDoc = await committeeRef.get();
             if (committeeDoc.exists) {
               const committeeData = committeeDoc.data();
-              const relatedEventIds = (committeeData?.relatedEventIds || []).filter((eid: string) => eid !== id);
+              const relatedEventIds = Array.isArray(committeeData?.relatedEventIds) 
+                ? committeeData.relatedEventIds.filter((eid: string) => eid !== id)
+                : [];
               await committeeRef.update({
                 relatedEventIds,
                 updatedAt: Timestamp.fromDate(new Date()),
               });
-              console.log(`[DEBUG] Successfully removed event ${id} from committee ${committeeId}`);
-            } else {
-              console.log(`[DEBUG] Committee ${committeeId} not found`);
             }
           } catch (error) {
-            console.error(`[DEBUG] Error unlinking event ${id} from committee ${committeeId}:`, error);
+            console.error(`Error unlinking event ${id} from committee ${committeeId}:`, error);
           }
         }
       }
       
       // Add event to new committees
       for (const committeeId of newCommitteeIds) {
+        if (typeof committeeId !== 'string') {
+          console.error('Invalid committee ID (not a string):', committeeId);
+          continue;
+        }
+        
         if (!oldCommitteeIds.includes(committeeId)) {
           try {
-            console.log(`[DEBUG] Adding event ${id} to committee ${committeeId}`);
             const committeeRef = adminDb.collection('committees').doc(committeeId);
             const committeeDoc = await committeeRef.get();
             if (committeeDoc.exists) {
               const committeeData = committeeDoc.data();
-              const relatedEventIds = committeeData?.relatedEventIds || [];
+              const relatedEventIds = Array.isArray(committeeData?.relatedEventIds) ? committeeData.relatedEventIds : [];
               if (!relatedEventIds.includes(id)) {
                 relatedEventIds.push(id);
                 await committeeRef.update({
                   relatedEventIds,
                   updatedAt: Timestamp.fromDate(new Date()),
                 });
-                console.log(`[DEBUG] Successfully added event ${id} to committee ${committeeId}`);
-              } else {
-                console.log(`[DEBUG] Event ${id} already in committee ${committeeId}`);
               }
-            } else {
-              console.log(`[DEBUG] Committee ${committeeId} not found`);
             }
           } catch (error) {
-            console.error(`[DEBUG] Error linking event ${id} to committee ${committeeId}:`, error);
+            console.error(`Error linking event ${id} to committee ${committeeId}:`, error);
           }
         }
       }
     }
+
+    // Update the event - ensure relatedCommitteeIds is clean before saving
+    if (updates.relatedCommitteeIds !== undefined) {
+      updates.relatedCommitteeIds = Array.isArray(updates.relatedCommitteeIds) 
+        ? updates.relatedCommitteeIds.filter(c => typeof c === 'string')
+        : [];
+    }
+    
+    await updateEvent(id, updates);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {
@@ -190,4 +273,5 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+
 
