@@ -218,9 +218,12 @@ export async function PATCH(request: NextRequest) {
     }
     
     const currentRawData = currentDoc.data();
-    // Ensure oldCommitteeIds is an array of strings (filter out any objects)
+    // Ensure oldCommitteeIds and oldPersonIds are arrays of strings (filter out any objects)
     const oldCommitteeIdsRaw = Array.isArray(currentRawData?.relatedCommitteeIds) ? currentRawData.relatedCommitteeIds : [];
     const oldCommitteeIds = oldCommitteeIdsRaw.filter((c: any) => typeof c === 'string');
+    
+    const oldPersonIdsRaw = Array.isArray(currentRawData?.relatedPersonIds) ? currentRawData.relatedPersonIds : [];
+    const oldPersonIds = oldPersonIdsRaw.filter((p: any) => typeof p === 'string');
 
     // Handle bidirectional linking with committees if relatedCommitteeIds changed
     if (updates.relatedCommitteeIds !== undefined) {
