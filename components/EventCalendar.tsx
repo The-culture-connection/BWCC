@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, MapPin, Clock, Lock, Unlock, ChevronLeft, ChevronRight, X, Copy, Check } from 'lucide-react';
+import { Calendar, MapPin, Clock, ChevronLeft, ChevronRight, X, Copy, Check } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, getDay, isValid } from 'date-fns';
 
 interface Event {
@@ -19,10 +19,6 @@ export default function EventCalendar() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showPrivate, setShowPrivate] = useState(false);
-  const [password, setPassword] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
@@ -30,14 +26,14 @@ export default function EventCalendar() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetchEvents(false);
+    fetchEvents();
   }, []);
 
-  const fetchEvents = async (includePrivate: boolean) => {
+  const fetchEvents = async () => {
     try {
       setLoading(true);
       setError('');
-      const response = await fetch(`/api/events?private=${includePrivate}`);
+      const response = await fetch('/api/events?private=false');
       const data = await response.json();
 
       if (response.ok) {
@@ -52,37 +48,17 @@ export default function EventCalendar() {
     }
   };
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === 'BWCC2025') {
-      setIsAuthenticated(true);
-      setPasswordError(false);
-      fetchEvents(true);
-    } else {
-      setPasswordError(true);
-      setPassword('');
+  const getCalendarFeedUrl = (): string => {
+    // Client-side: use window.location
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}/api/calendar/feed`;
     }
-  };
-
-  const togglePrivateView = () => {
-    if (!showPrivate && !isAuthenticated) {
-      return;
-    }
-    const newShowPrivate = !showPrivate;
-    setShowPrivate(newShowPrivate);
-    fetchEvents(newShowPrivate && isAuthenticated);
-  };
-
-  const getCalendarFeedUrl = (includePrivate: boolean = false): string => {
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    if (includePrivate && isAuthenticated) {
-      return `${baseUrl}/api/calendar/feed?private=true&password=BWCC2025`;
-    }
-    return `${baseUrl}/api/calendar/feed`;
+    // Fallback (shouldn't happen in client component)
+    return '/api/calendar/feed';
   };
 
   const copyFeedUrl = async () => {
-    const url = getCalendarFeedUrl(subscribeType === 'private');
+    const url = getCalendarFeedUrl();
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -93,7 +69,7 @@ export default function EventCalendar() {
   };
 
   const handleDirectSubscribe = (type: 'public' | 'private') => {
-    const url = getCalendarFeedUrl(type === 'private');
+    const url = getCalendarFeedUrl();
     
     // Try multiple methods to make it as automatic as possible
     // Method 1: Use webcal:// protocol for desktop calendar apps
@@ -112,7 +88,7 @@ export default function EventCalendar() {
   };
 
   const handleGoogleCalendarSubscribe = async (type: 'public' | 'private') => {
-    const url = getCalendarFeedUrl(type === 'private');
+    const url = getCalendarFeedUrl();
     
     // Open modal first
     setSubscribeType(type);
@@ -132,7 +108,7 @@ export default function EventCalendar() {
   };
 
   const handleAddToGoogleCalendar = (type: 'public' | 'private') => {
-    const url = getCalendarFeedUrl(type === 'private');
+    const url = getCalendarFeedUrl();
     
     // Try multiple Google Calendar subscription methods
     // Method 1: Direct URL subscription (most reliable)
@@ -220,7 +196,7 @@ export default function EventCalendar() {
             Subscribe to our calendar to automatically receive event updates
           </p>
           
-          {/* Subscribe Buttons */}
+          {/* Subscribe Button */}
           <div className="flex flex-wrap justify-center gap-4 mb-8">
             <button
               onClick={() => handleDirectSubscribe('public')}
@@ -229,61 +205,9 @@ export default function EventCalendar() {
               <Calendar size={20} />
               Subscribe to Public Calendar
             </button>
-            {isAuthenticated && (
-              <button
-                onClick={() => handleDirectSubscribe('private')}
-                className="bg-brand-brown text-white px-6 py-3 rounded-lg hover:bg-brand-gold hover:text-brand-black transition-colors font-secondary font-semibold flex items-center gap-2"
-              >
-                <Calendar size={20} />
-                Subscribe to Private Calendar
-              </button>
-            )}
           </div>
         </motion.div>
 
-        {/* Private Calendar Toggle */}
-        <div className="mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-xl p-4 shadow-md">
-          <div className="flex items-center gap-4">
-            {!isAuthenticated ? (
-              <form onSubmit={handlePasswordSubmit} className="flex items-center gap-2">
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setPasswordError(false);
-                  }}
-                  placeholder="Enter password for private events"
-                  className="px-4 py-2 border border-brand-tan rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold font-secondary"
-                />
-                <button
-                  type="submit"
-                  className="bg-brand-gold text-brand-black px-4 py-2 rounded-lg hover:bg-brand-brown hover:text-white transition-colors font-secondary font-semibold flex items-center gap-2"
-                >
-                  <Lock size={18} />
-                  Unlock Private
-                </button>
-              </form>
-            ) : (
-              <button
-                onClick={togglePrivateView}
-                className={`px-4 py-2 rounded-lg transition-colors font-secondary font-semibold flex items-center gap-2 ${
-                  showPrivate
-                    ? 'bg-brand-brown text-white'
-                    : 'bg-brand-cream text-brand-black hover:bg-brand-tan'
-                }`}
-              >
-                {showPrivate ? <Unlock size={18} /> : <Lock size={18} />}
-                {showPrivate ? 'Showing Private Events' : 'Show Private Events'}
-              </button>
-            )}
-            {passwordError && (
-              <span className="text-red-600 font-secondary text-sm">
-                Incorrect password
-              </span>
-            )}
-          </div>
-        </div>
 
         {/* Calendar Grid */}
         {loading ? (
@@ -465,7 +389,7 @@ export default function EventCalendar() {
                 <p className="text-sm text-brand-black/70 font-secondary mb-2">Calendar Feed URL:</p>
                 <div className="flex items-start gap-2 mb-2">
                   <code className="text-xs font-mono text-brand-black break-all flex-1">
-                    {getCalendarFeedUrl(subscribeType === 'private')}
+                    {getCalendarFeedUrl()}
                   </code>
                   <button
                     onClick={copyFeedUrl}

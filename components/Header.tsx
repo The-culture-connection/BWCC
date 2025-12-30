@@ -81,6 +81,14 @@ export default function Header() {
             >
               Get Involved
             </Link>
+            {!pathname.startsWith('/admin') && (
+              <Link
+                href="/admin/login"
+                className="text-brand-black hover:text-brand-brown font-medium transition-colors duration-200 font-secondary border border-brand-black/20 px-4 py-2 rounded-lg hover:bg-brand-black/5"
+              >
+                Staff Portal
+              </Link>
+            )}
           </div>
         </div>
       </nav>

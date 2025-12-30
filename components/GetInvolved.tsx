@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Mic, Handshake, Users, MessageSquare, UserCheck, Heart, GraduationCap, Radio, Share2 } from 'lucide-react';
+import { X, Mic, Handshake, Users, MessageSquare, UserCheck, Heart, GraduationCap, Share2 } from 'lucide-react';
 import DynamicForm from './DynamicForm';
 
 const involvementTypes = [
@@ -12,7 +12,6 @@ const involvementTypes = [
   { id: 'panelist', label: 'Apply to Be a Panelist', icon: UserCheck, color: 'bg-[#d1a270]' },
   { id: 'volunteer', label: 'Volunteer With Us', icon: Heart, color: 'bg-brand-gold' },
   { id: 'training', label: 'Sign Up for Trainings', icon: GraduationCap, color: 'bg-brand-brown' },
-  { id: 'podcast', label: 'Podcast Guest Application', icon: Radio, color: 'bg-[#a56c30]' },
   { id: 'share', label: 'Share an Opportunity / Resource', icon: Share2, color: 'bg-[#d1a270]' },
   { id: 'panel-topic', label: 'Suggest a Saturday Panel Topic', icon: MessageSquare, color: 'bg-brand-gold' },
 ];

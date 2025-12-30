@@ -11,20 +11,23 @@ export default function ConditionalLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const shouldHideSidebar = pathname === '/get-involved';
+  const isAdminPage = pathname?.startsWith('/admin');
+  const shouldHideSidebar = pathname === '/get-involved' || isAdminPage;
   const mainPadding = shouldHideSidebar ? '' : 'lg:pl-64';
   const footerPadding = shouldHideSidebar ? '' : 'lg:ml-64';
 
   return (
     <>
-      <Header />
-      <Sidebar />
+      {!isAdminPage && <Header />}
+      {!isAdminPage && <Sidebar />}
       <main className={`min-h-screen ${mainPadding} relative z-10`}>
         {children}
       </main>
-      <footer className={`bg-brand-black text-white ${footerPadding}`}>
-        <Footer />
-      </footer>
+      {!isAdminPage && (
+        <footer className={`bg-brand-black text-white ${footerPadding}`}>
+          <Footer />
+        </footer>
+      )}
     </>
   );
 }

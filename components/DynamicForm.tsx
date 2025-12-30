@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 
@@ -154,26 +154,22 @@ const formDefinitions: Record<string, any> = {
       {
         title: 'Contact Information',
         fields: [
-          { name: 'name', label: 'Name', type: 'text', required: true, mapsTo: 'Name' },
-          { name: 'email', label: 'Email', type: 'email', required: true, mapsTo: 'Email' },
+          { name: 'name', label: 'Name', type: 'text', required: false, mapsTo: 'Name' },
+          { name: 'email', label: 'Email', type: 'email', required: false, mapsTo: 'Email' },
           { name: 'phone', label: 'Phone', type: 'tel', required: false, mapsTo: 'Phone' },
           { name: 'organization', label: 'Organization (optional)', type: 'text', required: false, mapsTo: 'Organization' },
         ],
       },
       {
-        title: 'Panelist Application Details',
+        title: 'Event Assignment',
         fields: [
-          { name: 'bio', label: 'Short bio (3–5 sentences)', type: 'textarea', required: true, mapsTo: 'Details' },
-          { name: 'expertise', label: 'Areas of expertise', type: 'textarea', required: true, mapsTo: 'Details' },
-          { name: 'topics', label: 'Topics you want to speak on', type: 'textarea', required: true, mapsTo: 'Details' },
-          { name: 'experience', label: 'Previous speaking experience', type: 'textarea', required: false, mapsTo: 'Details' },
-          { name: 'availability', label: 'Availability (evenings/weekends/etc.)', type: 'text', required: true, mapsTo: 'Details' },
+          { name: 'assignedEventId', label: 'Select Event (optional)', type: 'event-select', required: false, mapsTo: 'Event' },
         ],
       },
       {
-        title: 'Additional Information',
+        title: 'Panelist Application Details',
         fields: [
-          { name: 'moreInfoLink', label: 'Link to More Information PDF (optional)', type: 'url', required: false, mapsTo: 'Uploaded Files' },
+          { name: 'bio', label: 'Short bio (3–5 sentences)', type: 'textarea', required: false, mapsTo: 'Details' },
         ],
       },
     ],
@@ -183,20 +179,22 @@ const formDefinitions: Record<string, any> = {
       {
         title: 'Contact Information',
         fields: [
-          { name: 'name', label: 'Name', type: 'text', required: true, mapsTo: 'Name' },
-          { name: 'email', label: 'Email', type: 'email', required: true, mapsTo: 'Email' },
+          { name: 'name', label: 'Name', type: 'text', required: false, mapsTo: 'Name' },
+          { name: 'email', label: 'Email', type: 'email', required: false, mapsTo: 'Email' },
           { name: 'phone', label: 'Phone', type: 'tel', required: false, mapsTo: 'Phone' },
           { name: 'organization', label: 'Organization (optional)', type: 'text', required: false, mapsTo: 'Organization' },
         ],
       },
       {
+        title: 'Event Assignment',
+        fields: [
+          { name: 'assignedEventId', label: 'Select Event (optional)', type: 'event-select', required: false, mapsTo: 'Event' },
+        ],
+      },
+      {
         title: 'Volunteer Application Details',
         fields: [
-          { name: 'supportTypes', label: 'What types of support are you available for?', type: 'checkbox', options: ['Event setup', 'Photography / videography', 'Food & catering support', 'Outreach', 'Research / analysis', 'Social media support', 'Operations'], required: true, mapsTo: 'Details' },
-          { name: 'availability', label: 'Availability (weekdays, weekends, evenings)', type: 'text', required: true, mapsTo: 'Details' },
-          { name: 'skills', label: 'Skills or past experience', type: 'textarea', required: false, mapsTo: 'Details' },
-          { name: 'workWithYouth', label: 'Are you comfortable working with children/teens?', type: 'radio', options: ['Yes', 'No', 'Not applicable'], required: false, mapsTo: 'Details' },
-          { name: 'transportation', label: 'Transportation access', type: 'radio', options: ['Yes', 'No'], required: true, mapsTo: 'Details' },
+          { name: 'supportTypes', label: 'What types of support are you available for?', type: 'checkbox', options: ['Event setup', 'Photography / videography', 'Food & catering support', 'Outreach', 'Research / analysis', 'Social media support', 'Operations'], required: false, mapsTo: 'Details' },
         ],
       },
     ],
@@ -238,6 +236,12 @@ const formDefinitions: Record<string, any> = {
           { name: 'email', label: 'Email', type: 'email', required: true, mapsTo: 'Email' },
           { name: 'phone', label: 'Phone', type: 'tel', required: false, mapsTo: 'Phone' },
           { name: 'organization', label: 'Organization (optional)', type: 'text', required: false, mapsTo: 'Organization' },
+        ],
+      },
+      {
+        title: 'Event Assignment',
+        fields: [
+          { name: 'assignedEventId', label: 'Select Event (optional)', type: 'event-select', required: false, mapsTo: 'Event' },
         ],
       },
       {
@@ -295,8 +299,28 @@ export default function DynamicForm({ type, onSuccess }: DynamicFormProps) {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
+  const [events, setEvents] = useState<Array<{ id: string; title: string; date: string | null; startTime: string | null; endTime: string | null; location?: string }>>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
 
   const formDef = formDefinitions[type];
+
+  // Load events for event-select fields (panelist, volunteer)
+  useEffect(() => {
+    if (type === 'panelist' || type === 'volunteer') {
+      setLoadingEvents(true);
+      fetch('/api/admin/events/select')
+        .then(res => res.json())
+        .then(data => {
+          setEvents(data.events || []);
+        })
+        .catch(err => {
+          console.error('Error loading events:', err);
+        })
+        .finally(() => {
+          setLoadingEvents(false);
+        });
+    }
+  }, [type]);
 
   if (!formDef) {
     return <div>Form type not found</div>;
@@ -353,7 +377,7 @@ export default function DynamicForm({ type, onSuccess }: DynamicFormProps) {
           <textarea
             value={value}
             onChange={(e) => handleChange(field.name, e.target.value)}
-            required={field.required}
+            required={false}
             rows={4}
             className="w-full px-4 py-3 border border-brand-tan rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent resize-none font-secondary"
             placeholder={field.label}
@@ -365,7 +389,7 @@ export default function DynamicForm({ type, onSuccess }: DynamicFormProps) {
           <select
             value={value}
             onChange={(e) => handleChange(field.name, e.target.value)}
-            required={field.required}
+            required={false}
             className="w-full px-4 py-3 border border-brand-tan rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent font-secondary"
           >
             <option value="">Select an option</option>
@@ -373,6 +397,44 @@ export default function DynamicForm({ type, onSuccess }: DynamicFormProps) {
               <option key={opt} value={opt}>{opt}</option>
             ))}
           </select>
+        );
+
+      case 'event-select':
+        return (
+          <div>
+            <select
+              value={value}
+              onChange={(e) => handleChange(field.name, e.target.value)}
+              required={false}
+              className="w-full px-4 py-3 border border-brand-tan rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent font-secondary"
+              disabled={loadingEvents}
+            >
+              <option value="">Select an event (optional)</option>
+              {events.map((event) => {
+                const eventDate = event.date ? new Date(event.date).toLocaleDateString() : 'TBD';
+                const eventTime = event.startTime ? new Date(event.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                const displayText = `${event.title} - ${eventDate}${eventTime ? ` at ${eventTime}` : ''}${event.location ? ` (${event.location})` : ''}`;
+                return (
+                  <option key={event.id} value={event.id}>
+                    {displayText}
+                  </option>
+                );
+              })}
+            </select>
+            {value && (() => {
+              const selectedEvent = events.find(e => e.id === value);
+              if (selectedEvent && (selectedEvent.startTime || selectedEvent.date)) {
+                return (
+                  <p className="mt-2 text-sm text-brand-black/70 font-secondary">
+                    Event: {selectedEvent.date ? new Date(selectedEvent.date).toLocaleDateString() : 'TBD'}
+                    {selectedEvent.startTime && ` at ${new Date(selectedEvent.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                    {selectedEvent.endTime && ` - ${new Date(selectedEvent.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                  </p>
+                );
+              }
+              return null;
+            })()}
+          </div>
         );
 
       case 'radio':
@@ -386,7 +448,7 @@ export default function DynamicForm({ type, onSuccess }: DynamicFormProps) {
                   value={opt}
                   checked={value === opt}
                   onChange={(e) => handleChange(field.name, e.target.value)}
-                  required={field.required}
+                  required={false}
                   className="text-brand-gold focus:ring-brand-gold"
                 />
                 <span>{opt}</span>
@@ -442,7 +504,7 @@ export default function DynamicForm({ type, onSuccess }: DynamicFormProps) {
             type="time"
             value={value}
             onChange={(e) => handleChange(field.name, e.target.value)}
-            required={field.required}
+            required={false}
             className="w-full px-4 py-3 border border-brand-tan rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent font-secondary"
           />
         );
@@ -453,7 +515,7 @@ export default function DynamicForm({ type, onSuccess }: DynamicFormProps) {
             type={field.type || 'text'}
             value={value}
             onChange={(e) => handleChange(field.name, e.target.value)}
-            required={field.required}
+            required={false}
             className="w-full px-4 py-3 border border-brand-tan rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-transparent font-secondary"
             placeholder={field.label}
           />

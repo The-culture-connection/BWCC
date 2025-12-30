@@ -1,77 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getEvents } from '@/lib/firebase/db';
+import { Event } from '@/lib/types/database';
+import { adminDb } from '@/lib/firebase/admin';
+import { Meeting } from '@/lib/types/database';
+import { convertTimestamps } from '@/lib/firebase/db';
 
 // Generate iCal feed for calendar subscription
 export async function GET(request: NextRequest) {
   try {
-    const url = new URL(request.url);
-    const pathname = url.pathname;
-    
-    // Determine if private based on URL path or query params
-    const isPrivateFeed = pathname.includes('/private');
     const searchParams = request.nextUrl.searchParams;
-    const includePrivate = isPrivateFeed || searchParams.get('private') === 'true';
-    const password = searchParams.get('password');
+    // Determine if private based on query params
+    const includePrivate = searchParams.get('private') === 'true';
 
-    // Check password for private events
-    if (includePrivate && password !== 'BWCC2025') {
-      return new NextResponse('Unauthorized', { status: 401 });
+    // Get events from Firebase
+    // Private calendar: all events (no status filter) + meetings
+    // Public calendar: only approved and public events
+    let events: Event[] = [];
+    let meetings: Meeting[] = [];
+    
+    if (includePrivate) {
+      // Private calendar shows ALL events + meetings (no password required)
+      events = await getEvents();
+      // Also fetch meetings for private calendar
+      if (adminDb) {
+        try {
+          const meetingsSnapshot = await adminDb.collection('meetings')
+            .orderBy('date', 'desc')
+            .get();
+          meetings = meetingsSnapshot.docs.map(doc => 
+            convertTimestamps({ id: doc.id, ...doc.data() } as Meeting)
+          );
+        } catch (error) {
+          console.error('Error fetching meetings for calendar:', error);
+        }
+      }
+    } else {
+      // Public calendar: only approved + public events (no meetings)
+      const allEvents = await getEvents();
+      events = allEvents.filter(event => 
+        event.status === 'Approved' && event.isPublicEvent === true
+      );
     }
-
-    const notionApiKey = process.env.NOTION_API_KEY;
-    const eventsDatabaseId = process.env.NOTION_EVENTS_DATABASE_ID;
-
-    if (!notionApiKey || !eventsDatabaseId) {
-      return new NextResponse('Server configuration error', { status: 500 });
-    }
-
-    // Build filter
-    let filter: any = {
-      and: [
-        {
-          property: 'Status',
-          select: {
-            equals: 'Approved',
-          },
-        },
-      ],
-    };
-
-    if (!includePrivate) {
-      filter.and.push({
-        property: 'Public Event?',
-        checkbox: {
-          equals: true,
-        },
-      });
-    }
-
-    // Query Notion database
-    const response = await fetch(`https://api.notion.com/v1/databases/${eventsDatabaseId}/query`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${notionApiKey}`,
-        'Content-Type': 'application/json',
-        'Notion-Version': '2022-06-28',
-      },
-      body: JSON.stringify({
-        filter: filter,
-        sorts: [
-          {
-            property: 'Date',
-            direction: 'ascending',
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      return new NextResponse('Failed to fetch events', { status: 500 });
-    }
-
-    const data = await response.json();
     
     // Debug: Log number of events found
-    console.log(`Found ${data.results.length} events from Notion (filtered for Approved status)`);
+    console.log(`Found ${events.length} events and ${meetings.length} meetings from Firebase${includePrivate ? ' (all events + meetings for private calendar)' : ' (approved + public events for public calendar)'}`);
 
     // Convert date string to EST timezone and format for iCal (without timezone offset when using TZID)
     const formatICSDateEST = (dateStr: string): string => {
@@ -163,8 +135,8 @@ export async function GET(request: NextRequest) {
     // Determine calendar name - ensure consistent formatting
     const calendarName = includePrivate ? 'BWCC - Private' : 'BWCC - Public';
     const calendarDesc = includePrivate 
-      ? 'Black Women Cultivating Change - Private Events Calendar' 
-      : 'Black Women Cultivating Change - Public Events Calendar';
+      ? 'Black Women Cultivating Change - Private Events Calendar (includes all events and meetings)' 
+      : 'Black Women Cultivating Change - Public Events Calendar (approved public events only)';
 
     // Build iCal content with proper line breaks (CRLF)
     const crlf = '\r\n';
@@ -201,60 +173,65 @@ export async function GET(request: NextRequest) {
     icsContent += `END:STANDARD${crlf}`;
     icsContent += `END:VTIMEZONE${crlf}`;
 
-    // Filter and process events
-    const events = data.results.filter((page: any) => {
-      const props = page.properties;
-      const startDate = props['Start Time']?.date?.start || props['Date']?.date?.start || '';
-      if (!startDate) {
-        console.log('Skipping event without date:', props['Event Title']?.title?.[0]?.text?.content || 'Untitled');
+    // Filter events that have valid dates
+    const validEvents = events.filter((event: Event) => {
+      const hasDate = !!(event.startTime || event.date);
+      if (!hasDate) {
+        console.log('Skipping event without date:', event.eventTitle || 'Untitled');
       }
-      return !!startDate;
+      return hasDate;
     });
 
-    console.log(`Processing ${events.length} events with valid dates`);
+    // Filter meetings that have valid dates (only for private calendar)
+    const validMeetings = includePrivate ? meetings.filter((meeting: Meeting) => {
+      const hasDate = !!(meeting.startTime || meeting.date);
+      if (!hasDate) {
+        console.log('Skipping meeting without date:', meeting.title || 'Untitled');
+      }
+      return hasDate;
+    }) : [];
 
-    if (events.length === 0) {
-      // Return empty calendar if no events
+    console.log(`Processing ${validEvents.length} events and ${validMeetings.length} meetings with valid dates`);
+
+    if (validEvents.length === 0 && validMeetings.length === 0) {
+      // Return empty calendar if no events or meetings
       icsContent += `END:VCALENDAR${crlf}`;
       return new NextResponse(icsContent, {
         headers: {
           'Content-Type': 'text/calendar; charset=utf-8',
           'Content-Disposition': 'inline; filename="bwcc-events.ics"',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
+          'Cache-Control': 'public, max-age=3600, must-revalidate', // Cache for 1 hour, then revalidate
+          'Access-Control-Allow-Origin': '*', // Allow calendar subscriptions from any domain
+          'Access-Control-Allow-Methods': 'GET',
         },
       });
     }
 
-    events.forEach((page: any) => {
-      const props = page.properties;
-      const title = props['Event Title']?.title?.[0]?.text?.content || 'Untitled Event';
-      const purpose = props['Purpose']?.rich_text?.[0]?.text?.content || '';
-      const location = props['Location']?.rich_text?.[0]?.text?.content || '';
+    validEvents.forEach((event: Event) => {
+      const title = event.eventTitle || 'Untitled Event';
+      const purpose = event.purpose || '';
+      const location = event.location || '';
       
-      // Get start date/time - prefer Start Time, fall back to Date
-      let startDate = props['Start Time']?.date?.start || props['Date']?.date?.start || '';
-      const startDateType = props['Start Time']?.date ? 'datetime' : (props['Date']?.date ? 'date' : null);
-      
-      // Get end date/time
-      let endDate = props['End Time']?.date?.start || '';
-      
-      if (!startDate) {
+      // Get start date/time - prefer startTime, fall back to date
+      const startDateObj = event.startTime || event.date;
+      if (!startDateObj) {
         console.log(`Skipping ${title} - no start date`);
         return;
       }
       
-      // Check if event is public (only relevant for public feed)
-      const isPublic = props['Public Event?']?.checkbox ?? false;
+      let startDate = startDateObj instanceof Date ? startDateObj.toISOString() : new Date(startDateObj).toISOString();
+      const startDateType = event.startTime ? 'datetime' : (event.date ? 'date' : null);
+      
+      // Get end date/time
+      let endDate = event.endTime ? (event.endTime instanceof Date ? event.endTime.toISOString() : new Date(event.endTime).toISOString()) : '';
       
       // Double-check public filter (should already be filtered, but just in case)
-      if (!includePrivate && !isPublic) {
-        console.log(`Skipping ${title} - not public (isPublic: ${isPublic})`);
+      if (!includePrivate && !event.isPublicEvent) {
+        console.log(`Skipping ${title} - not public`);
         return;
       }
       
-      console.log(`Processing event: ${title}, Start: ${startDate}, End: ${endDate || 'none'}, Public: ${isPublic}, Status: ${props['Status']?.select?.name || 'unknown'}`);
+      console.log(`Processing event: ${title}, Start: ${startDate}, End: ${endDate || 'none'}, Public: ${event.isPublicEvent}`);
       
       // Determine if this is a date-only or datetime event
       const isDateOnly = startDateType === 'date' && !startDate.includes('T');
@@ -271,7 +248,7 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      const uid = `${page.id.replace(/-/g, '')}@bwcc.org`;
+      const uid = `${(event.id || '').replace(/-/g, '')}@bwcc.org`;
       // DTSTAMP should be in UTC
       const dtstamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
       
@@ -351,15 +328,125 @@ export async function GET(request: NextRequest) {
       icsContent += `END:VEVENT${crlf}`;
     });
 
+    // Add meetings to private calendar (same format as events)
+    validMeetings.forEach((meeting: Meeting) => {
+      const title = meeting.title || 'Untitled Meeting';
+      const description = meeting.description || '';
+      const location = meeting.location || '';
+      
+      // Get start date/time - prefer startTime, fall back to date
+      const startDateObj = meeting.startTime || meeting.date;
+      if (!startDateObj) {
+        console.log(`Skipping ${title} - no start date`);
+        return;
+      }
+      
+      let startDate = startDateObj instanceof Date ? startDateObj.toISOString() : new Date(startDateObj).toISOString();
+      const startDateType = meeting.startTime ? 'datetime' : (meeting.date ? 'date' : null);
+      
+      // Get end date/time
+      let endDate = meeting.endTime ? (meeting.endTime instanceof Date ? meeting.endTime.toISOString() : new Date(meeting.endTime).toISOString()) : '';
+      
+      console.log(`Processing meeting: ${title}, Start: ${startDate}, End: ${endDate || 'none'}`);
+      
+      // Determine if this is a date-only or datetime meeting
+      const isDateOnly = startDateType === 'date' && !startDate.includes('T');
+      
+      // If no end date, default to 1 hour after start (or end of day for date-only)
+      if (!endDate) {
+        if (isDateOnly) {
+          // For date-only meetings, set end to same day
+          endDate = startDate.split('T')[0] + 'T23:59:59';
+        } else {
+          const start = new Date(startDate);
+          const end = new Date(start.getTime() + 60 * 60 * 1000);
+          endDate = end.toISOString();
+        }
+      }
+      
+      const uid = `meeting-${(meeting.id || '').replace(/-/g, '')}@bwcc.org`;
+      // DTSTAMP should be in UTC
+      const dtstamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+      
+      // Format start/end dates appropriately with EST timezone
+      let dtstart: string;
+      let dtend: string;
+      
+      if (isDateOnly) {
+        dtstart = formatICSDateOnly(startDate);
+        const endDateOnly = endDate.split('T')[0];
+        dtend = formatICSDateOnly(endDateOnly);
+      } else {
+        dtstart = formatICSDateEST(startDate);
+        dtend = formatICSDateEST(endDate);
+      }
+      
+      if (!dtstart || !dtend) return; // Skip if date formatting failed
+      
+      // Escape special characters for iCal
+      const escapeText = (text: string): string => {
+        if (!text) return '';
+        return text
+          .replace(/\\/g, '\\\\')
+          .replace(/,/g, '\\,')
+          .replace(/;/g, '\\;')
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '');
+      };
+      
+      // Fold long lines
+      const foldLine = (line: string): string => {
+        if (line.length <= 75) return line;
+        let folded = '';
+        let remaining = line;
+        while (remaining.length > 75) {
+          folded += remaining.substring(0, 75) + crlf + ' ';
+          remaining = remaining.substring(75);
+        }
+        folded += remaining;
+        return folded;
+      };
+      
+      // Build meeting event
+      icsContent += `BEGIN:VEVENT${crlf}`;
+      icsContent += foldLine(`UID:${uid}${crlf}`);
+      icsContent += foldLine(`DTSTAMP:${dtstamp}${crlf}`);
+      
+      if (isDateOnly) {
+        icsContent += foldLine(`DTSTART;VALUE=DATE:${dtstart}${crlf}`);
+        icsContent += foldLine(`DTEND;VALUE=DATE:${dtend}${crlf}`);
+      } else {
+        icsContent += `DTSTART;TZID=America/New_York:${dtstart}${crlf}`;
+        icsContent += `DTEND;TZID=America/New_York:${dtend}${crlf}`;
+      }
+      
+      if (title) {
+        icsContent += foldLine(`SUMMARY:${escapeText(title)}${crlf}`);
+      }
+      
+      if (description) {
+        icsContent += foldLine(`DESCRIPTION:${escapeText(description)}${crlf}`);
+      }
+      
+      if (location) {
+        icsContent += foldLine(`LOCATION:${escapeText(location)}${crlf}`);
+      }
+      
+      icsContent += `STATUS:CONFIRMED${crlf}`;
+      icsContent += `SEQUENCE:0${crlf}`;
+      icsContent += `LAST-MODIFIED:${dtstamp}${crlf}`;
+      icsContent += `END:VEVENT${crlf}`;
+    });
+
     icsContent += `END:VCALENDAR${crlf}`;
 
     return new NextResponse(icsContent, {
       headers: {
         'Content-Type': 'text/calendar; charset=utf-8',
         'Content-Disposition': `inline; filename="${calendarName.replace(/\s+/g, '-').toLowerCase()}.ics"`,
-        'Cache-Control': 'no-cache, no-store, must-revalidate', // Don't cache - ensure fresh data
-        'Pragma': 'no-cache',
-        'Expires': '0',
+        'Cache-Control': 'public, max-age=3600, must-revalidate', // Cache for 1 hour, then revalidate
+        'Access-Control-Allow-Origin': '*', // Allow calendar subscriptions from any domain
+        'Access-Control-Allow-Methods': 'GET',
       },
     });
   } catch (error: any) {
