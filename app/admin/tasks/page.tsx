@@ -20,21 +20,81 @@ interface TaskDetailModalProps {
   onUpdate: () => void;
 }
 
+// Normalize deliverables to handle both legacy string URLs and new object format
+function normalizeDeliverables(input: any): Array<any> {
+  if (!Array.isArray(input)) return [];
+
+  return input
+    .map((d, idx) => {
+      if (!d) return null;
+
+      // If legacy string URL
+      if (typeof d === 'string') {
+        const url = d;
+        const fileNameRaw = url.split('/').pop()?.split('?')[0] || `File_${idx + 1}`;
+        let fileName = fileNameRaw;
+        try { 
+          fileName = decodeURIComponent(fileNameRaw); 
+        } catch {}
+        fileName = fileName.replace(/^\d+-/, '');
+
+        return {
+          id: `legacy-${idx}`,
+          fileName,
+          contentType: '',
+          size: 0,
+          storagePath: '',
+          previewUrl: url,
+          createdAt: new Date().toISOString(),
+        };
+      }
+
+      // If new object shape
+      if (typeof d === 'object') {
+        return {
+          id: d.id ?? `obj-${idx}`,
+          fileName: d.fileName ?? d.name ?? `File_${idx + 1}`,
+          contentType: d.contentType ?? d.type ?? '',
+          size: d.size ?? 0,
+          storagePath: d.storagePath ?? d.path ?? '',
+          previewUrl: d.previewUrl ?? d.url ?? d.publicUrl ?? '',
+          createdAt: d.createdAt ?? new Date().toISOString(),
+        };
+      }
+
+      return null;
+    })
+    .filter((item): item is any => item !== null);
+}
+
 function TaskDetailModal({ task, users, committees, onClose, onUpdate }: TaskDetailModalProps) {
   const [uploading, setUploading] = useState(false);
   const [currentTask, setCurrentTask] = useState<Task>(task);
+  const [preview, setPreview] = useState<null | { url: string; fileName: string; contentType: string }>(null);
 
   // Reload task data
   useEffect(() => {
     const loadTask = async () => {
       try {
+        console.log('[DEBUG] ========== LOADING TASK DATA ==========');
+        console.log('[DEBUG] Loading task data for task ID:', task.id);
         const response = await fetch(`/api/admin/tasks?id=${task.id}`);
+        console.log('[DEBUG] Task fetch response status:', response.status);
         const data = await response.json();
+        console.log('[DEBUG] Task data response:', data);
         if (data.task) {
+          console.log('[DEBUG] Task found, deliverables:', data.task.deliverables);
+          console.log('[DEBUG] Task deliverables count:', data.task.deliverables?.length || 0);
+          console.log('[DEBUG] Task deliverables type:', typeof data.task.deliverables);
+          console.log('[DEBUG] Task deliverables is array:', Array.isArray(data.task.deliverables));
           setCurrentTask(data.task);
+          console.log('[DEBUG] Task state updated');
+        } else {
+          console.error('[DEBUG] No task data in response');
         }
+        console.log('[DEBUG] ========== LOADING TASK DATA END ==========');
       } catch (error) {
-        console.error('Error loading task:', error);
+        console.error('[DEBUG] Error loading task:', error);
       }
     };
     loadTask();
@@ -75,29 +135,46 @@ function TaskDetailModal({ task, users, committees, onClose, onUpdate }: TaskDet
       console.log('[DEBUG] Upload response data:', responseData);
 
       if (response.ok) {
-        console.log('[DEBUG] Upload successful, response data:', responseData);
+        console.log('[DEBUG] ========== UPLOAD SUCCESS (FRONTEND) ==========');
+        console.log('[DEBUG] Upload successful, response status:', response.status);
+        console.log('[DEBUG] Full response data:', JSON.stringify(responseData, null, 2));
         console.log('[DEBUG] Uploaded URL:', responseData.url);
+        console.log('[DEBUG] Public URL:', responseData.publicUrl);
+        console.log('[DEBUG] Signed URL:', responseData.signedUrl);
+        console.log('[DEBUG] Debug info:', responseData.debug);
         console.log('[DEBUG] Deliverables from response:', responseData.deliverables);
+        console.log('[DEBUG] Deliverables array length:', responseData.deliverables?.length || 0);
         
         // Reload task to get updated deliverables
-        console.log('[DEBUG] Reloading task data...');
-        const taskResponse = await fetch(`/api/admin/tasks?id=${task.id}`);
-        const taskData = await taskResponse.json();
-        console.log('[DEBUG] Task reload response:', taskData);
-        
-        if (taskData.task) {
-          console.log('[DEBUG] Updated task deliverables:', taskData.task.deliverables);
-          setCurrentTask(taskData.task);
-          console.log('[DEBUG] Task state updated with new deliverables');
-        } else {
-          console.error('[DEBUG] No task data in response');
+        console.log('[DEBUG] Reloading task data from API...');
+        try {
+          const taskResponse = await fetch(`/api/admin/tasks?id=${task.id}`);
+          console.log('[DEBUG] Task reload response status:', taskResponse.status);
+          
+          const taskData = await taskResponse.json();
+          console.log('[DEBUG] Task reload response data:', JSON.stringify(taskData, null, 2));
+          
+          if (taskData.task) {
+            console.log('[DEBUG] Task found, deliverables count:', taskData.task.deliverables?.length || 0);
+            console.log('[DEBUG] Updated task deliverables array:', JSON.stringify(taskData.task.deliverables || []));
+            setCurrentTask(taskData.task);
+            console.log('[DEBUG] ✓ Task state updated with new deliverables');
+          } else {
+            console.error('[DEBUG] ✗ No task data in response');
+          }
+        } catch (reloadError) {
+          console.error('[DEBUG] ✗ Error reloading task:', reloadError);
         }
         
         onUpdate(); // Trigger parent update
-        alert('File uploaded successfully!');
+        alert(`File uploaded successfully! URL: ${responseData.url}`);
+        console.log('[DEBUG] ========== UPLOAD SUCCESS END ==========');
       } else {
-        console.error('[DEBUG] Upload failed:', responseData);
+        console.error('[DEBUG] ========== UPLOAD FAILED (FRONTEND) ==========');
+        console.error('[DEBUG] Upload failed with status:', response.status);
+        console.error('[DEBUG] Upload failed response:', JSON.stringify(responseData, null, 2));
         alert(`Error uploading file: ${responseData.error || 'Unknown error'}`);
+        console.error('[DEBUG] ========== UPLOAD FAILED END ==========');
       }
     } catch (error) {
       console.error('[DEBUG] Error uploading deliverable:', error);
@@ -205,70 +282,137 @@ function TaskDetailModal({ task, users, committees, onClose, onUpdate }: TaskDet
             </div>
 
             {/* Uploaded Files */}
-            {currentTask.deliverables && currentTask.deliverables.length > 0 ? (
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Uploaded Files</h4>
-                <div className="space-y-2">
-                  {currentTask.deliverables.map((url, idx) => {
-                    if (!url) {
-                      console.log('[DEBUG] Skipping null/undefined deliverable at index', idx);
-                      return null;
-                    }
-                    const urlString = typeof url === 'string' ? url : (url.toString ? url.toString() : String(url));
-                    if (!urlString || urlString === '[object Object]' || !urlString.startsWith('http')) {
-                      console.error('[DEBUG] Invalid URL in deliverables:', { url, urlString, idx });
-                      return null;
-                    }
-                    const fileName = urlString.split('/').pop()?.split('?')[0] || 'File';
-                    const isImage = urlString.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-                    const isVideo = urlString.match(/\.(mp4|webm|mov)$/i);
-                    
-                    return (
-                      <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded border border-gray-200">
-                        {isImage ? (
-                          <img 
-                            src={urlString} 
-                            alt={fileName} 
-                            className="w-16 h-16 object-cover rounded"
-                            onError={(e) => {
-                              console.error('[DEBUG] Image load error:', urlString);
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        ) : isVideo ? (
-                          <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center text-xs">Video</div>
-                        ) : (
-                          <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center text-xs">Doc</div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <a
-                            href={urlString}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm font-medium text-brand-gold hover:text-brand-brown truncate block"
-                          >
-                            {fileName}
-                          </a>
-                          <p className="text-xs text-gray-500">Click to view or download</p>
+            {(() => {
+              console.log('[DEBUG] Raw deliverables before normalization:', currentTask.deliverables);
+              console.log('[DEBUG] First deliverable type:', typeof currentTask.deliverables?.[0]);
+              console.log('[DEBUG] First deliverable value:', currentTask.deliverables?.[0]);
+              
+              const deliverables = normalizeDeliverables(currentTask.deliverables);
+              
+              console.log('[DEBUG] Normalized deliverables:', deliverables);
+              console.log('[DEBUG] Normalized deliverables IDs:', deliverables.map((d: any) => d.id));
+              
+              if (deliverables.length === 0) {
+                return <p className="text-sm text-gray-500">No deliverables uploaded yet</p>;
+              }
+
+              return (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">
+                    Uploaded Files ({deliverables.length})
+                  </h4>
+                  <div className="space-y-3">
+                    {deliverables.map((d: any) => {
+                      const url = d.previewUrl;
+                      const isImage = d.contentType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(d.fileName);
+                      const isVideo = d.contentType?.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(d.fileName);
+                      const isPdf = d.contentType === 'application/pdf' || /\.pdf$/i.test(d.fileName);
+
+                      return (
+                        <div key={d.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition">
+                          <div className="w-20 h-20 flex items-center justify-center bg-gray-200 rounded border border-gray-300 overflow-hidden flex-shrink-0">
+                            {isImage && url ? (
+                              <img 
+                                src={url} 
+                                alt={d.fileName} 
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <span className="text-xs text-gray-600">
+                                {isVideo ? 'Video' : isPdf ? 'PDF' : 'File'}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-gray-900 break-words">{d.fileName}</div>
+                            {d.size > 0 && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                {(d.size / 1024 / 1024).toFixed(2)} MB
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-shrink-0 flex flex-col gap-2">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch(`/api/admin/tasks/${task.id}/deliverables/${d.id}/url`);
+                                  const data = await res.json();
+                                  const viewUrl = data.url || url;
+                                  if (!viewUrl) {
+                                    alert('No URL available for preview.');
+                                    return;
+                                  }
+                                  setPreview({ url: viewUrl, fileName: d.fileName, contentType: d.contentType });
+                                } catch (error) {
+                                  console.error('Error getting preview URL:', error);
+                                  alert('Error loading preview');
+                                }
+                              }}
+                              className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 font-medium whitespace-nowrap"
+                            >
+                              Preview
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                window.location.href = `/api/admin/tasks/${task.id}/deliverables/${d.id}/download`;
+                              }}
+                              className="px-4 py-2 text-sm bg-brand-gold text-brand-black rounded hover:bg-brand-tan font-medium whitespace-nowrap"
+                            >
+                              Download
+                            </button>
+                          </div>
                         </div>
-                        <a
-                          href={urlString}
-                          download={fileName}
-                          className="px-3 py-1 text-xs bg-brand-gold text-brand-black rounded hover:bg-brand-tan font-medium whitespace-nowrap"
-                        >
-                          Download
-                        </a>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3">
+                    Total: {deliverables.length} file{deliverables.length !== 1 ? 's' : ''}
+                  </p>
                 </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">No deliverables uploaded yet</p>
-            )}
+              );
+            })()}
           </div>
         </div>
       </div>
+
+      {/* Preview Modal */}
+      {preview && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onClick={() => setPreview(null)}>
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="font-semibold text-gray-900">{preview.fileName}</div>
+              <button 
+                onClick={() => setPreview(null)} 
+                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 h-[75vh] overflow-auto">
+              {preview.contentType?.startsWith('image/') ? (
+                <img src={preview.url} alt={preview.fileName} className="max-h-full max-w-full mx-auto" />
+              ) : preview.contentType?.startsWith('video/') ? (
+                <video src={preview.url} controls className="w-full h-full max-h-[70vh]" />
+              ) : preview.contentType === 'application/pdf' || /\.pdf$/i.test(preview.fileName) ? (
+                <iframe src={preview.url} className="w-full h-full min-h-[70vh]" />
+              ) : (
+                <div className="h-full flex items-center justify-center">
+                  <a className="text-blue-600 underline text-lg" href={preview.url} target="_blank" rel="noreferrer">
+                    Open file in new tab
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
