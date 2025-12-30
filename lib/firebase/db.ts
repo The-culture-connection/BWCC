@@ -13,7 +13,6 @@ import {
   Decision
 } from '../types/database';
 import { Timestamp } from 'firebase-admin/firestore';
-import type { FirebaseFirestore } from 'firebase-admin/firestore';
 
 // Convert Firestore timestamps to Dates
 export function convertTimestamps<T extends Record<string, any>>(data: T): T {
@@ -40,8 +39,9 @@ export function prepareForFirestore<T extends Record<string, any>>(data: T): any
     if (data[key] === undefined) {
       continue;
     }
-    if (data[key] instanceof Date) {
-      prepared[key] = Timestamp.fromDate(data[key]);
+    const value = data[key] as any;
+    if (value instanceof Date) {
+      prepared[key] = Timestamp.fromDate(value);
     } else if (Array.isArray(data[key])) {
       prepared[key] = data[key];
     } else if (data[key] && typeof data[key] === 'object') {
@@ -113,7 +113,7 @@ export async function getRequests(filters?: { status?: string; decision?: string
   }
   
   const snapshot = await query.orderBy('createdAt', 'desc').get();
-  return snapshot.docs.map(doc => convertTimestamps({ id: doc.id, ...doc.data() } as Request));
+  return snapshot.docs.map((doc: any) => convertTimestamps({ id: doc.id, ...doc.data() } as Request));
 }
 
 // Event operations
@@ -164,7 +164,7 @@ export async function getEvents(filters?: { status?: string; isPublic?: boolean 
   }
   
   const snapshot = await query.orderBy('date', 'asc').get();
-  return snapshot.docs.map(doc => convertTimestamps({ id: doc.id, ...doc.data() } as Event));
+  return snapshot.docs.map((doc: any) => convertTimestamps({ id: doc.id, ...doc.data() } as Event));
 }
 
 // Person operations
@@ -247,7 +247,7 @@ export async function getNewsletterSignups(): Promise<NewsletterSignup[]> {
     .orderBy('subscribedAt', 'desc')
     .get();
   
-  return snapshot.docs.map(doc => convertTimestamps({ id: doc.id, ...doc.data() } as NewsletterSignup));
+  return snapshot.docs.map((doc: any) => convertTimestamps({ id: doc.id, ...doc.data() } as NewsletterSignup));
 }
 
 // Volunteer operations
@@ -272,7 +272,7 @@ export async function getVolunteers(): Promise<Volunteer[]> {
     .orderBy('createdAt', 'desc')
     .get();
   
-  return snapshot.docs.map(doc => convertTimestamps({ id: doc.id, ...doc.data() } as Volunteer));
+  return snapshot.docs.map((doc: any) => convertTimestamps({ id: doc.id, ...doc.data() } as Volunteer));
 }
 
 // Task operations
@@ -306,7 +306,7 @@ export async function getTasks(filters?: { assignedTo?: string; status?: string;
   }
   
   const snapshot = await query.orderBy('dueDate', 'asc').get();
-  return snapshot.docs.map(doc => convertTimestamps({ id: doc.id, ...doc.data() } as Task));
+  return snapshot.docs.map((doc: any) => convertTimestamps({ id: doc.id, ...doc.data() } as Task));
 }
 
 // Schedule operations
@@ -337,6 +337,6 @@ export async function getSchedules(filters?: { userId?: string; startDate?: Date
   }
   
   const snapshot = await query.orderBy('startTime', 'asc').get();
-  return snapshot.docs.map(doc => convertTimestamps({ id: doc.id, ...doc.data() } as Schedule));
+  return snapshot.docs.map((doc: any) => convertTimestamps({ id: doc.id, ...doc.data() } as Schedule));
 }
 

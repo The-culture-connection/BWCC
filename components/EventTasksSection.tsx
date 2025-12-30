@@ -381,9 +381,13 @@ function TaskItem({
         </div>
         {showDeliverables && task.deliverables && task.deliverables.length > 0 && (
           <div className="mt-2 space-y-2">
-            {task.deliverables.map((url, idx) => {
+            {task.deliverables.map((url: any, idx: number) => {
               if (!url) return null;
-              const urlString = typeof url === 'string' ? url : (url.toString ? url.toString() : String(url));
+              const urlString: string = typeof url === 'string' 
+                ? url 
+                : (typeof url === 'object' && url !== null && 'toString' in url 
+                  ? String(url) 
+                  : String(url));
               if (!urlString || urlString === '[object Object]' || !urlString.startsWith('http')) {
                 console.error('Invalid URL in deliverables:', url);
                 return null;

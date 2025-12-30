@@ -34,7 +34,6 @@ if (typeof window === 'undefined') {
           cleanedPrivateKey = cleanedPrivateKey.replace(/\\n/g, '\n');
           
           credentials = {
-            type: 'service_account',
             projectId: projectIdEnv.trim(),
             privateKeyId: process.env.FIREBASE_PRIVATE_KEY_ID?.trim(),
             privateKey: cleanedPrivateKey,
@@ -44,7 +43,7 @@ if (typeof window === 'undefined') {
             tokenUri: process.env.FIREBASE_TOKEN_URI || 'https://oauth2.googleapis.com/token',
             authProviderX509CertUrl: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL || 'https://www.googleapis.com/oauth2/v1/certs',
             clientX509CertUrl: process.env.FIREBASE_CLIENT_X509_CERT_URL?.trim(),
-          };
+          } as ServiceAccount;
           
           // Validate required fields
           if (!credentials.privateKey || !credentials.clientEmail || !credentials.projectId) {
