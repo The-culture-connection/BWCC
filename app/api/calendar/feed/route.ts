@@ -262,7 +262,7 @@ export async function GET(request: NextRequest) {
           endDateParsed = new Date(event.endTime);
         }
       }
-      const endDate = endDateParsed ? endDateParsed.toISOString() : '';
+      let endDate = endDateParsed ? endDateParsed.toISOString() : '';
       
       // Double-check public filter (should already be filtered, but just in case)
       if (!includePrivate && !event.isPublicEvent) {
@@ -399,7 +399,7 @@ export async function GET(request: NextRequest) {
           endDateParsed = new Date(meeting.endTime);
         }
       }
-      const endDate = endDateParsed ? endDateParsed.toISOString() : '';
+      let endDate = endDateParsed ? endDateParsed.toISOString() : '';
       
       console.log(`Processing meeting: ${title}, Start: ${startDate}, End: ${endDate || 'none'}`);
       
