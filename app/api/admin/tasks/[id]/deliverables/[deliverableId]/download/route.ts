@@ -69,7 +69,7 @@ export async function GET(
     
     const filename = deliverable.fileName || metadata.name?.split('/').pop() || 'download';
     
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(fileBuffer as unknown as BodyInit, {
       headers: {
         'Content-Type': deliverable.contentType || metadata.contentType || 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,

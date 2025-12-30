@@ -5,10 +5,10 @@ import { adminDb } from '@/lib/firebase/admin';
 export async function GET(request: NextRequest) {
   try {
     // Get counts for dashboard - handle errors gracefully
-    let pendingRequests = [];
-    let allEvents = [];
-    let volunteers = [];
-    let newsletterSignups = [];
+    let pendingRequests: any[] = [];
+    let allEvents: any[] = [];
+    let volunteers: any[] = [];
+    let newsletterSignups: any[] = [];
 
     try {
       pendingRequests = await getRequests({ status: 'Pending' });

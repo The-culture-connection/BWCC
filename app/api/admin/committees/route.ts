@@ -121,7 +121,7 @@ export async function PATCH(request: NextRequest) {
 
     // Ensure members is always an array of strings (user IDs) if provided
     if (updates.members !== undefined) {
-      updates.members = Array.isArray(updates.members) ? updates.members.filter(m => typeof m === 'string') : [];
+      updates.members = Array.isArray(updates.members) ? updates.members.filter((m: any) => typeof m === 'string') : [];
     }
 
     const updateData = {

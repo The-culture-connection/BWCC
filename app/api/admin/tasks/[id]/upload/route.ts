@@ -97,21 +97,7 @@ export async function POST(
       console.error('[DEBUG] makePublic error message:', makePublicError.message);
       console.error('[DEBUG] makePublic error code:', makePublicError.code);
       console.error('[DEBUG] makePublic error details:', JSON.stringify(makePublicError, null, 2));
-      
-      // Try alternative method: set IAM policy
-      console.log('[DEBUG] Attempting alternative: Setting IAM policy...');
-      try {
-        await fileRef.iam.setPolicy({
-          bindings: [{
-            role: 'roles/storage.objectViewer',
-            members: ['allUsers'],
-          }],
-        });
-        console.log('[DEBUG] ✓ IAM policy set successfully');
-      } catch (iamError: any) {
-        console.error('[DEBUG] ✗ Error setting IAM policy:', iamError);
-        console.error('[DEBUG] IAM error message:', iamError.message);
-      }
+      // Note: Even if makePublic fails, the file can still be accessed via signed URLs
     }
     
     // Step 5: Set metadata with public access

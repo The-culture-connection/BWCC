@@ -30,6 +30,7 @@ export default function CommitteesPage() {
     startTime: '',
     endTime: '',
     location: '',
+    minutes: '',
   });
 
   useEffect(() => {
@@ -145,6 +146,7 @@ export default function CommitteesPage() {
           startTime: '',
           endTime: '',
           location: '',
+          minutes: '',
         });
         setShowCreateMeeting(false);
         if (selectedCommittee) {

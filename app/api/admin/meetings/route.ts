@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     const snapshot = await query.orderBy('date', 'desc').get();
     
-    const meetings = snapshot.docs.map(doc => 
+    const meetings = snapshot.docs.map((doc: any) => 
       convertTimestamps({ id: doc.id, ...doc.data() } as Meeting)
     );
 
@@ -48,9 +48,9 @@ export async function POST(request: NextRequest) {
         if (committeeDoc.exists) {
           const committeeData = committeeDoc.data();
           const memberIds = committeeData?.members || [];
-          if (memberIds.length > 0) {
+          if (memberIds.length > 0 && adminDb) {
             const userDocs = await Promise.all(
-              memberIds.map((uid: string) => adminDb.collection('users').doc(uid).get())
+              memberIds.map((uid: string) => adminDb!.collection('users').doc(uid).get())
             );
             attendeeEmails = userDocs
               .map(doc => doc.data()?.email)

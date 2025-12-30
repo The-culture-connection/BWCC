@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     const snapshot = await query.orderBy('date', 'asc').get();
     
     // Fix arrays that got converted to objects - clean up corrupted data
-    const events = await Promise.all(snapshot.docs.map(async (doc) => {
+    const events = await Promise.all(snapshot.docs.map(async (doc: any) => {
       const rawData = doc.data();
       const converted = await getEvent(doc.id);
       if (!converted) return null;
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
       const cleanCommitteeIds = rawCommitteeIds.filter((c: any) => typeof c === 'string');
       
       // If we cleaned up corrupted data, update the document
-      if (cleanCommitteeIds.length !== rawCommitteeIds.length) {
+      if (cleanCommitteeIds.length !== rawCommitteeIds.length && adminDb) {
         await adminDb.collection('events').doc(doc.id).update({
           relatedCommitteeIds: cleanCommitteeIds,
           updatedAt: Timestamp.fromDate(new Date()),
@@ -193,7 +193,7 @@ export async function PATCH(request: NextRequest) {
     if (updates.relatedCommitteeIds !== undefined) {
       // Ensure relatedCommitteeIds is an array of strings
       const newCommitteeIds = Array.isArray(updates.relatedCommitteeIds) 
-        ? updates.relatedCommitteeIds.filter(c => typeof c === 'string')
+        ? updates.relatedCommitteeIds.filter((c: any) => typeof c === 'string')
         : [];
       
       // Update the updates object to use the filtered array
@@ -258,7 +258,7 @@ export async function PATCH(request: NextRequest) {
     // Update the event - ensure relatedCommitteeIds is clean before saving
     if (updates.relatedCommitteeIds !== undefined) {
       updates.relatedCommitteeIds = Array.isArray(updates.relatedCommitteeIds) 
-        ? updates.relatedCommitteeIds.filter(c => typeof c === 'string')
+        ? updates.relatedCommitteeIds.filter((c: any) => typeof c === 'string')
         : [];
     }
     

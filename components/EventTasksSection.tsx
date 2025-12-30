@@ -109,6 +109,7 @@ export default function EventTasksSection({ eventId, onTaskCreated }: EventTasks
         status: 'Not Started',
         priority: 'Medium',
         assignedTo: '',
+        assignedToCommittee: '',
         dueDate: '',
       });
       loadTasks();
@@ -239,6 +240,7 @@ export default function EventTasksSection({ eventId, onTaskCreated }: EventTasks
                   status: 'Not Started',
                   priority: 'Medium',
                   assignedTo: '',
+                  assignedToCommittee: '',
                   dueDate: '',
                 });
               }}
@@ -252,7 +254,7 @@ export default function EventTasksSection({ eventId, onTaskCreated }: EventTasks
 
       {/* Tasks List */}
       {tasks.length === 0 ? (
-        <p className="text-gray-500 text-sm">No tasks yet. Click "Task Out" to create one.</p>
+        <p className="text-gray-500 text-sm">No tasks yet. Click &quot;Task Out&quot; to create one.</p>
       ) : (
         <div className="space-y-2">
           {tasks.map((task) => {
