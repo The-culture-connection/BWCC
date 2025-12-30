@@ -38,7 +38,9 @@ export default function CommitteesPage() {
   }, []);
 
   useEffect(() => {
+    console.log('[DEBUG] selectedCommittee changed:', selectedCommittee);
     if (selectedCommittee) {
+      console.log('[DEBUG] Loading committee data for:', selectedCommittee.id);
       loadCommitteeData(selectedCommittee.id!);
     }
   }, [selectedCommittee]);
@@ -215,19 +217,37 @@ export default function CommitteesPage() {
 
   const handleUpdateMembers = async (committeeId: string, members: string[]) => {
     try {
-      await fetch('/api/admin/committees', {
+      const response = await fetch('/api/admin/committees', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: committeeId, members }),
       });
-      loadCommittees();
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update members');
+      }
+      
+      // Reload committees list to update the card view
+      await loadCommittees();
+      
+      // Reload the selected committee with fresh data from API
       if (selectedCommittee?.id === committeeId) {
-        const updated = committees.find(c => c.id === committeeId);
-        if (updated) setSelectedCommittee({ ...updated, members });
+        try {
+          const committeeResponse = await fetch(`/api/admin/committees?id=${committeeId}`);
+          const committeeData = await committeeResponse.json();
+          if (committeeData.committee) {
+            setSelectedCommittee(committeeData.committee);
+          }
+        } catch (error) {
+          console.error('Error reloading committee:', error);
+          // Fallback: update with the new members array
+          setSelectedCommittee({ ...selectedCommittee, members });
+        }
       }
     } catch (error) {
-      console.error('Error updating committee:', error);
-      alert('Error updating committee');
+      console.error('Error updating committee members:', error);
+      alert(`Error updating committee: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -247,7 +267,21 @@ export default function CommitteesPage() {
               <div
                 key={committee.id}
                 className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => setSelectedCommittee(committee)}
+                onClick={async () => {
+                  // Fetch fresh data to ensure we have correct arrays
+                  try {
+                    const response = await fetch(`/api/admin/committees?id=${committee.id}`);
+                    const data = await response.json();
+                    if (data.committee) {
+                      setSelectedCommittee(data.committee);
+                    } else {
+                      setSelectedCommittee(committee);
+                    }
+                  } catch (error) {
+                    console.error('Error loading committee:', error);
+                    setSelectedCommittee(committee);
+                  }
+                }}
               >
                 <h3 className="text-xl font-bold text-brand-black mb-2">{committee.name}</h3>
                 {committee.description && (
@@ -299,24 +333,31 @@ export default function CommitteesPage() {
                   </div>
                   
                   {/* Current Members List - View Only */}
-                  {selectedCommittee.members && selectedCommittee.members.length > 0 ? (
-                    <div className="space-y-2">
-                      {selectedCommittee.members.map((memberId) => {
-                        const member = users.find(u => u.uid === memberId);
-                        if (!member) return null;
-                        return (
-                          <div key={memberId} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200">
-                            <div>
-                              <span className="text-sm font-medium text-gray-900">{member.name || 'Unknown'}</span>
-                              <span className="text-xs text-gray-500 ml-2">{member.email}</span>
+                  {(() => {
+                    // Ensure members is an array
+                    const membersArray = Array.isArray(selectedCommittee.members) ? selectedCommittee.members : [];
+                    
+                    if (membersArray.length === 0) {
+                      return <p className="text-sm text-gray-500">No members added yet</p>;
+                    }
+                    
+                    return (
+                      <div className="space-y-2">
+                        {membersArray.map((memberId) => {
+                          const member = users.find(u => u.uid === memberId);
+                          if (!member) return null;
+                          return (
+                            <div key={memberId} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200">
+                              <div>
+                                <span className="text-sm font-medium text-gray-900">{member.name || 'Unknown'}</span>
+                                <span className="text-xs text-gray-500 ml-2">{member.email}</span>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">No members added yet</p>
-                  )}
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Meetings Section */}
@@ -544,33 +585,39 @@ export default function CommitteesPage() {
               {/* Current Members */}
               <div className="mb-4">
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Current Members</h4>
-                {selectedCommittee.members && selectedCommittee.members.length > 0 ? (
-                  <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                    {selectedCommittee.members.map((memberId) => {
-                      const member = users.find(u => u.uid === memberId);
-                      if (!member) return null;
-                      return (
-                        <div key={memberId} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <div>
-                            <span className="text-sm font-medium text-gray-900">{member.name || 'Unknown'}</span>
-                            <span className="text-xs text-gray-500 ml-2">{member.email}</span>
+                {(() => {
+                  const membersArray = Array.isArray(selectedCommittee.members) ? selectedCommittee.members : [];
+                  
+                  if (membersArray.length === 0) {
+                    return <p className="text-sm text-gray-500">No members assigned</p>;
+                  }
+                  
+                  return (
+                    <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                      {membersArray.map((memberId) => {
+                        const member = users.find(u => u.uid === memberId);
+                        if (!member) return null;
+                        return (
+                          <div key={memberId} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                            <div>
+                              <span className="text-sm font-medium text-gray-900">{member.name || 'Unknown'}</span>
+                              <span className="text-xs text-gray-500 ml-2">{member.email}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const newMembers = membersArray.filter(id => id !== memberId);
+                                handleUpdateMembers(selectedCommittee.id!, newMembers);
+                              }}
+                              className="text-xs text-red-600 hover:text-red-800"
+                            >
+                              Remove
+                            </button>
                           </div>
-                          <button
-                            onClick={() => {
-                              const newMembers = selectedCommittee.members?.filter(id => id !== memberId) || [];
-                              handleUpdateMembers(selectedCommittee.id!, newMembers);
-                            }}
-                            className="text-xs text-red-600 hover:text-red-800"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No members assigned</p>
-                )}
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
               
               {/* Available Users to Add */}
@@ -581,12 +628,15 @@ export default function CommitteesPage() {
                     <p className="text-sm text-gray-500">No users available</p>
                   ) : (
                     users
-                      .filter(u => !selectedCommittee.members?.includes(u.uid))
+                      .filter(u => {
+                        const membersArray = Array.isArray(selectedCommittee.members) ? selectedCommittee.members : [];
+                        return !membersArray.includes(u.uid);
+                      })
                       .map((user) => (
                         <button
                           key={user.uid}
                           onClick={() => {
-                            const currentMembers = selectedCommittee.members || [];
+                            const currentMembers = Array.isArray(selectedCommittee.members) ? selectedCommittee.members : [];
                             handleUpdateMembers(selectedCommittee.id!, [...currentMembers, user.uid]);
                           }}
                           className="w-full text-left p-2 hover:bg-gray-50 rounded text-sm"

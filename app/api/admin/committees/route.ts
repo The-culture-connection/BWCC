@@ -8,13 +8,45 @@ export async function GET(request: NextRequest) {
   try {
     if (!adminDb) throw new Error('Firebase Admin not initialized');
 
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    // If ID is provided, return single committee
+    if (id) {
+      const doc = await adminDb.collection('committees').doc(id).get();
+      if (!doc.exists) {
+        return NextResponse.json({ error: 'Committee not found' }, { status: 404 });
+      }
+      
+      const rawData = doc.data();
+      const converted = convertTimestamps({ id: doc.id, ...rawData } as Committee);
+      
+      // Fix arrays that got converted to objects - ensure members and relatedEventIds stay as arrays
+      const committee = {
+        ...converted,
+        members: Array.isArray(rawData?.members) ? rawData.members : [],
+        relatedEventIds: Array.isArray(rawData?.relatedEventIds) ? rawData.relatedEventIds : [],
+      };
+      
+      return NextResponse.json({ committee }, { status: 200 });
+    }
+
+    // Otherwise return all committees
     const snapshot = await adminDb.collection('committees')
       .orderBy('createdAt', 'desc')
       .get();
     
-    const committees = snapshot.docs.map(doc => 
-      convertTimestamps({ id: doc.id, ...doc.data() } as Committee)
-    );
+    const committees = snapshot.docs.map(doc => {
+      const rawData = doc.data();
+      const converted = convertTimestamps({ id: doc.id, ...rawData } as Committee);
+      
+      // Fix arrays that got converted to objects - ensure members and relatedEventIds stay as arrays
+      return {
+        ...converted,
+        members: Array.isArray(rawData?.members) ? rawData.members : [],
+        relatedEventIds: Array.isArray(rawData?.relatedEventIds) ? rawData.relatedEventIds : [],
+      };
+    });
 
     return NextResponse.json({ committees }, { status: 200 });
   } catch (error: any) {
@@ -80,7 +112,8 @@ export async function PATCH(request: NextRequest) {
   try {
     if (!adminDb) throw new Error('Firebase Admin not initialized');
 
-    const { id, ...updates } = await request.json();
+    const body = await request.json();
+    const { id, ...updates } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Committee ID is required' }, { status: 400 });
