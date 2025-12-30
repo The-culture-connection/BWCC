@@ -16,7 +16,14 @@ export async function GET(request: NextRequest) {
       role: doc.data().role || 'staff',
     }));
 
-    return NextResponse.json({ users }, { status: 200 });
+    return NextResponse.json({ users }, { 
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
   } catch (error: any) {
     console.error('Error fetching users:', error);
     return NextResponse.json(

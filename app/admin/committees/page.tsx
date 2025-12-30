@@ -46,6 +46,13 @@ export default function CommitteesPage() {
     }
   }, [selectedCommittee]);
 
+  // Reload users when Manage Members modal opens to ensure fresh data
+  useEffect(() => {
+    if (showAddMemberModal) {
+      loadUsers();
+    }
+  }, [showAddMemberModal]);
+
   const loadCommittees = async () => {
     try {
       setLoading(true);
@@ -61,7 +68,12 @@ export default function CommitteesPage() {
 
   const loadUsers = async () => {
     try {
-      const response = await fetch('/api/admin/users');
+      const response = await fetch('/api/admin/users', {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       const data = await response.json();
       setUsers(data.users || []);
     } catch (error) {
