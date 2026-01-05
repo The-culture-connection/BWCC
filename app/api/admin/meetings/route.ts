@@ -140,6 +140,33 @@ export async function POST(request: NextRequest) {
     const docRef = await adminDb.collection('meetings').add(meetingData);
     const meetingId = docRef.id;
 
+    // Sync meeting to Google Calendar
+    try {
+      const { syncMeetingToGoogleCalendar } = await import('@/lib/google-calendar/service');
+      const { convertTimestamps } = await import('@/lib/firebase/db');
+      const { Timestamp } = await import('firebase-admin/firestore');
+      
+      const meetingWithId: Meeting = convertTimestamps({
+        id: meetingId,
+        ...meeting,
+        createdAt: now,
+        updatedAt: now,
+      } as Meeting);
+      
+      const googleCalendarEventId = await syncMeetingToGoogleCalendar(meetingWithId, false);
+      
+      // Update meeting with Google Calendar event ID if sync was successful
+      if (googleCalendarEventId && adminDb) {
+        await adminDb.collection('meetings').doc(meetingId).update({
+          googleCalendarEventId,
+          updatedAt: Timestamp.fromDate(new Date()),
+        });
+      }
+    } catch (error) {
+      console.error('Error syncing meeting to Google Calendar:', error);
+      // Don't fail the request if Google Calendar sync fails
+    }
+
     // Update committee's relatedMeetingIds if committeeId is provided
     if (committeeId) {
       const committeeRef = adminDb.collection('committees').doc(committeeId);

@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
     let meetings: Meeting[] = [];
     
     if (includePrivate) {
-      // Private calendar shows ALL events with status "Approved" + meetings
-      // Fetch all events, then filter for Approved status
+      // Private calendar shows events with status "Approved" AND isPublicEvent: false + meetings
+      // Fetch all events, then filter for Approved and private events
       if (!adminDb) throw new Error('Firebase Admin not initialized');
       const eventsSnapshot = await adminDb.collection('events')
         .orderBy('date', 'asc')
@@ -32,8 +32,10 @@ export async function GET(request: NextRequest) {
       const allEvents = eventsSnapshot.docs.map(doc => 
         convertTimestamps({ id: doc.id, ...doc.data() } as Event)
       );
-      // Filter for Approved events only
-      events = allEvents.filter(event => event.status === 'Approved');
+      // Filter for Approved AND private events (isPublicEvent: false)
+      events = allEvents.filter(event => 
+        event.status === 'Approved' && event.isPublicEvent === false
+      );
       
       // Also fetch meetings for private calendar
       try {

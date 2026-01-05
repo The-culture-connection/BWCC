@@ -138,6 +138,24 @@ export async function POST(request: NextRequest) {
 
     const eventId = await createEvent(newEvent);
 
+    // Get the created event to sync to Google Calendar
+    const createdEvent = await getEvent(eventId);
+    if (createdEvent) {
+      // Sync to Google Calendar if it's a private approved event
+      try {
+        const { syncEventToGoogleCalendar } = await import('@/lib/google-calendar/service');
+        const googleCalendarEventId = await syncEventToGoogleCalendar(createdEvent, false);
+        
+        // Update event with Google Calendar event ID if sync was successful
+        if (googleCalendarEventId) {
+          await updateEvent(eventId, { googleCalendarEventId });
+        }
+      } catch (error) {
+        console.error('Error syncing event to Google Calendar:', error);
+        // Don't fail the request if Google Calendar sync fails
+      }
+    }
+
     // Link event to committees bidirectionally
     if (eventData.relatedCommitteeIds && Array.isArray(eventData.relatedCommitteeIds) && eventData.relatedCommitteeIds.length > 0) {
       const { adminDb } = await import('@/lib/firebase/admin');
@@ -365,6 +383,23 @@ export async function PATCH(request: NextRequest) {
     }
     
     await updateEvent(id, updates);
+
+    // Sync to Google Calendar after update
+    try {
+      const updatedEvent = await getEvent(id);
+      if (updatedEvent) {
+        const { syncEventToGoogleCalendar } = await import('@/lib/google-calendar/service');
+        const googleCalendarEventId = await syncEventToGoogleCalendar(updatedEvent, true);
+        
+        // Update event with Google Calendar event ID if sync was successful and it changed
+        if (googleCalendarEventId && googleCalendarEventId !== updatedEvent.googleCalendarEventId) {
+          await updateEvent(id, { googleCalendarEventId });
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing event to Google Calendar:', error);
+      // Don't fail the request if Google Calendar sync fails
+    }
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {

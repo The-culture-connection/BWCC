@@ -66,6 +66,7 @@ export interface Event {
   relatedCommitteeIds?: string[]; // Committee IDs (multiselect)
   relatedPersonIds?: string[]; // Person IDs (for panelists/volunteers/partners)
   content?: EventContent; // Collected content for the event
+  googleCalendarEventId?: string; // Google Calendar event ID for private events
   createdAt: Date;
   updatedAt: Date;
 }
@@ -167,6 +168,7 @@ export interface Meeting {
   attendees?: string[]; // User IDs
   committeeId?: string;
   minutes?: string; // Meeting minutes content
+  googleCalendarEventId?: string; // Google Calendar event ID
   createdAt: Date;
   updatedAt: Date;
   createdBy: string;
@@ -228,6 +230,7 @@ export interface User {
   email: string;
   name: string;
   role: 'admin' | 'board' | 'staff';
+  subscribedToPrivateCalendar?: boolean; // If true, user will receive invites for private calendar events
   createdAt: Date;
   lastLogin?: Date;
 }

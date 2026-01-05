@@ -60,6 +60,9 @@ export default function EventsPage() {
   const [filter, setFilter] = useState<{ status?: string }>({});
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [showManageCommitteesModal, setShowManageCommitteesModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState<Partial<Event>>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadEvents();
@@ -111,9 +114,96 @@ export default function EventsPage() {
         body: JSON.stringify({ id, status }),
       });
       loadEvents();
-      setSelectedEvent(null);
+      if (selectedEvent?.id === id) {
+        setSelectedEvent({ ...selectedEvent, status: status as Event['status'] });
+      }
     } catch (error) {
       console.error('Error updating event:', error);
+    }
+  };
+
+  const handleStartEdit = () => {
+    if (!selectedEvent) return;
+    setIsEditing(true);
+    // Convert Date objects to ISO strings for input fields
+    const date = selectedEvent.date ? new Date(selectedEvent.date) : null;
+    const startTime = selectedEvent.startTime ? new Date(selectedEvent.startTime) : null;
+    const endTime = selectedEvent.endTime ? new Date(selectedEvent.endTime) : null;
+    
+    setEditFormData({
+      eventTitle: selectedEvent.eventTitle,
+      eventType: selectedEvent.eventType,
+      description: selectedEvent.description || '',
+      purpose: selectedEvent.purpose || '',
+      location: selectedEvent.location || '',
+      isPublicEvent: selectedEvent.isPublicEvent,
+      marketingStatus: selectedEvent.marketingStatus,
+      participantCriteria: selectedEvent.participantCriteria || '',
+      date: date ? date.toISOString().split('T')[0] : '',
+      startTime: startTime ? new Date(startTime.getTime() - startTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
+      endTime: endTime ? new Date(endTime.getTime() - endTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditFormData({});
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedEvent?.id) return;
+    
+    setSaving(true);
+    try {
+      const updates: any = {
+        eventTitle: editFormData.eventTitle,
+        eventType: editFormData.eventType,
+        description: editFormData.description,
+        purpose: editFormData.purpose,
+        location: editFormData.location,
+        isPublicEvent: editFormData.isPublicEvent,
+        marketingStatus: editFormData.marketingStatus,
+        participantCriteria: editFormData.participantCriteria,
+      };
+
+      // Convert date strings to Date objects
+      if (editFormData.date) {
+        updates.date = new Date(editFormData.date);
+      }
+      if (editFormData.startTime) {
+        updates.startTime = new Date(editFormData.startTime);
+      }
+      if (editFormData.endTime) {
+        updates.endTime = new Date(editFormData.endTime);
+      }
+
+      const response = await fetch('/api/admin/events', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedEvent.id, ...updates }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert(`Error updating event: ${errorData.error || 'Unknown error'}`);
+        return;
+      }
+
+      // Reload the event to get fresh data
+      const eventResponse = await fetch(`/api/admin/events?id=${selectedEvent.id}`);
+      const eventData = await eventResponse.json();
+      if (eventData.event) {
+        setSelectedEvent(eventData.event);
+      }
+      
+      await loadEvents();
+      setIsEditing(false);
+      setEditFormData({});
+    } catch (error) {
+      console.error('Error saving event:', error);
+      alert('Error saving event. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -278,13 +368,45 @@ export default function EventsPage() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-brand-black">{selectedEvent.eventTitle}</h2>
-                <button
-                  onClick={() => setSelectedEvent(null)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
+                <h2 className="text-2xl font-bold text-brand-black">
+                  {isEditing ? 'Edit Event' : selectedEvent.eventTitle}
+                </h2>
+                <div className="flex gap-2">
+                  {!isEditing ? (
+                    <button
+                      onClick={handleStartEdit}
+                      className="px-4 py-2 bg-brand-gold text-brand-black rounded-lg hover:bg-brand-tan font-medium"
+                    >
+                      Edit
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleSaveEdit}
+                        disabled={saving}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50"
+                      >
+                        {saving ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        disabled={saving}
+                        className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 font-medium disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => {
+                      setIsEditing(false);
+                      setSelectedEvent(null);
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               
               <div className="space-y-4">
@@ -380,32 +502,163 @@ export default function EventsPage() {
                     })()}
                   </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-700">Date & Time</h3>
-                  <p className="text-gray-900">
-                    {selectedEvent.date ? formatDateEastern(selectedEvent.date) : '-'}
-                    {selectedEvent.startTime && ` at ${formatTimeEastern(selectedEvent.startTime)}`}
-                    {selectedEvent.endTime && ` - ${formatTimeEastern(selectedEvent.endTime)}`}
-                  </p>
+                {/* Editable Fields */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Event Title</label>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editFormData.eventTitle || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, eventTitle: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      />
+                    ) : (
+                      <p className="text-gray-900">{selectedEvent.eventTitle}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Event Type</label>
+                    {isEditing ? (
+                      <select
+                        value={editFormData.eventType || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, eventType: e.target.value as Event['eventType'] })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="Speaking">Speaking</option>
+                        <option value="Listening Session">Listening Session</option>
+                        <option value="Training">Training</option>
+                        <option value="Partnership Event">Partnership Event</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    ) : (
+                      <p className="text-gray-900">{selectedEvent.eventType}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Date</label>
+                    {isEditing ? (
+                      <input
+                        type="date"
+                        value={editFormData.date || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      />
+                    ) : (
+                      <p className="text-gray-900">{selectedEvent.date ? formatDateEastern(selectedEvent.date) : '-'}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Start Time</label>
+                    {isEditing ? (
+                      <input
+                        type="datetime-local"
+                        value={editFormData.startTime || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, startTime: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      />
+                    ) : (
+                      <p className="text-gray-900">{selectedEvent.startTime ? formatTimeEastern(selectedEvent.startTime) : '-'}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">End Time</label>
+                    {isEditing ? (
+                      <input
+                        type="datetime-local"
+                        value={editFormData.endTime || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, endTime: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      />
+                    ) : (
+                      <p className="text-gray-900">{selectedEvent.endTime ? formatTimeEastern(selectedEvent.endTime) : '-'}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Location</label>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editFormData.location || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      />
+                    ) : (
+                      <p className="text-gray-900">{selectedEvent.location || '-'}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Is Public Event</label>
+                    {isEditing ? (
+                      <select
+                        value={editFormData.isPublicEvent ? 'true' : 'false'}
+                        onChange={(e) => setEditFormData({ ...editFormData, isPublicEvent: e.target.value === 'true' })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="false">Private</option>
+                        <option value="true">Public</option>
+                      </select>
+                    ) : (
+                      <p className="text-gray-900">{selectedEvent.isPublicEvent ? 'Public' : 'Private'}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-gray-700 mb-1">Marketing Status</label>
+                    {isEditing ? (
+                      <select
+                        value={editFormData.marketingStatus || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, marketingStatus: e.target.value as Event['marketingStatus'] })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="Not Needed">Not Needed</option>
+                        <option value="Flyer Needed">Flyer Needed</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Complete">Complete</option>
+                      </select>
+                    ) : (
+                      <p className="text-gray-900">{selectedEvent.marketingStatus}</p>
+                    )}
+                  </div>
                 </div>
-                {selectedEvent.location && (
-                  <div>
-                    <h3 className="font-semibold text-gray-700">Location</h3>
-                    <p className="text-gray-900">{selectedEvent.location}</p>
-                  </div>
-                )}
-                {selectedEvent.purpose && (
-                  <div>
-                    <h3 className="font-semibold text-gray-700">Purpose</h3>
-                    <p className="text-gray-900">{selectedEvent.purpose}</p>
-                  </div>
-                )}
-                {selectedEvent.description && (
-                  <div>
-                    <h3 className="font-semibold text-gray-700">Description</h3>
-                    <p className="text-gray-900 whitespace-pre-wrap">{selectedEvent.description}</p>
-                  </div>
-                )}
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Purpose</label>
+                  {isEditing ? (
+                    <textarea
+                      value={editFormData.purpose || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, purpose: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      rows={3}
+                    />
+                  ) : (
+                    <p className="text-gray-900 whitespace-pre-wrap">{selectedEvent.purpose || '-'}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Description</label>
+                  {isEditing ? (
+                    <textarea
+                      value={editFormData.description || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      rows={4}
+                    />
+                  ) : (
+                    <p className="text-gray-900 whitespace-pre-wrap">{selectedEvent.description || '-'}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Participant Criteria</label>
+                  {isEditing ? (
+                    <textarea
+                      value={editFormData.participantCriteria || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, participantCriteria: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      rows={3}
+                    />
+                  ) : (
+                    <p className="text-gray-900 whitespace-pre-wrap">{selectedEvent.participantCriteria || '-'}</p>
+                  )}
+                </div>
 
                 {/* Tasks Section */}
                 <div className="border-t pt-4 mt-4">

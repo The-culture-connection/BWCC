@@ -40,6 +40,8 @@ export default function SchedulesPage() {
     type: 'other' as Schedule['type'],
     isPrivate: true,
   });
+  const [subscriptionMessage, setSubscriptionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isSubscribing, setIsSubscribing] = useState(false);
 
   useEffect(() => {
     loadEvents();
@@ -69,16 +71,64 @@ export default function SchedulesPage() {
   };
 
   const handleSubscribeToPrivateCalendar = async () => {
-    const url = getCalendarFeedUrl(true);
-    
+    const user = getCurrentUser();
+    if (!user) {
+      setSubscriptionMessage({ type: 'error', text: 'You must be logged in to subscribe to the private calendar' });
+      setTimeout(() => setSubscriptionMessage(null), 5000);
+      return;
+    }
+
+    setIsSubscribing(true);
+    setSubscriptionMessage(null);
+
+    const calendarEmail = 'bwccinternalcalendar@gmail.com';
+
     try {
-      await navigator.clipboard.writeText(url);
-      window.open('https://calendar.google.com/calendar/u/0/r/settings/addbyurl', '_blank');
-      alert('Calendar feed URL copied to clipboard! Google Calendar should be open in a new tab.\n\nNext steps:\n1. Paste the URL (Ctrl+V or Cmd+V) in the "URL of calendar" field\n2. Click "Add calendar"\n3. The calendar will automatically sync and update when new events are added');
-    } catch (err) {
-      console.error('Failed to copy to clipboard:', err);
-      window.open('https://calendar.google.com/calendar/u/0/r/settings/addbyurl', '_blank');
-      alert('Google Calendar is opening in a new tab. Please manually copy the calendar feed URL from above and paste it in Google Calendar.');
+      // Copy calendar email to clipboard
+      await navigator.clipboard.writeText(calendarEmail);
+      
+      // Get the user's ID token
+      const idToken = await user.getIdToken();
+
+      // Call the API to update the user's subscription status
+      const response = await fetch('/api/admin/users/subscribe-private-calendar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Open Google Calendar add calendar page
+        window.open('https://calendar.google.com/calendar/u/0/r/settings/addcalendar', '_blank');
+        
+        setSubscriptionMessage({ 
+          type: 'success', 
+          text: `Calendar email copied to clipboard! Google Calendar should be open in a new tab.\n\nNext steps:\n1. Paste the email (Ctrl+V or Cmd+V) in the "Add calendar" field\n2. Click "Add calendar"\n3. The calendar will automatically sync and show all private events.` 
+        });
+        // Clear message after 10 seconds
+        setTimeout(() => setSubscriptionMessage(null), 10000);
+      } else {
+        setSubscriptionMessage({ 
+          type: 'error', 
+          text: data.error || 'Failed to subscribe to private calendar. Please try again.' 
+        });
+        setTimeout(() => setSubscriptionMessage(null), 5000);
+      }
+    } catch (error: any) {
+      console.error('Error subscribing to private calendar:', error);
+      // Still try to open the calendar page even if clipboard fails
+      window.open('https://calendar.google.com/calendar/u/0/r/settings/addcalendar', '_blank');
+      setSubscriptionMessage({ 
+        type: 'error', 
+        text: `Failed to copy to clipboard, but Google Calendar is opening. Please manually copy: ${calendarEmail}` 
+      });
+      setTimeout(() => setSubscriptionMessage(null), 10000);
+    } finally {
+      setIsSubscribing(false);
     }
   };
 
@@ -411,10 +461,11 @@ export default function SchedulesPage() {
           <div className="flex gap-4">
             <button
               onClick={handleSubscribeToPrivateCalendar}
-              className="px-4 py-2 bg-brand-brown text-white rounded-lg hover:bg-brand-gold hover:text-brand-black font-medium flex items-center gap-2"
+              disabled={isSubscribing}
+              className="px-4 py-2 bg-brand-brown text-white rounded-lg hover:bg-brand-gold hover:text-brand-black font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CalendarIcon size={18} />
-              Subscribe to Private Calendar
+              {isSubscribing ? 'Subscribing...' : 'Subscribe to Private Calendar'}
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
@@ -429,11 +480,34 @@ export default function SchedulesPage() {
         <div className="bg-brand-cream rounded-lg shadow p-4 mb-6">
           <h2 className="text-lg font-bold text-brand-black mb-2">Private Calendar Subscription</h2>
           <p className="text-sm text-gray-700 mb-2">
-            Subscribe to the private calendar to automatically receive all approved events, meetings, and schedules.
+            Subscribe to the private calendar to automatically receive all approved private events and meetings. Events are created on the Google Calendar and will appear in your calendar once you subscribe.
           </p>
-          <code className="text-xs bg-white p-2 rounded block break-all">
-            {getCalendarFeedUrl(true)}
-          </code>
+          {subscriptionMessage && (
+            <div className={`mb-3 p-3 rounded-lg whitespace-pre-line ${
+              subscriptionMessage.type === 'success' 
+                ? 'bg-green-50 border border-green-200 text-green-800' 
+                : 'bg-red-50 border border-red-200 text-red-800'
+            }`}>
+              {subscriptionMessage.text}
+            </div>
+          )}
+          <div className="mb-3">
+            <p className="text-sm font-semibold text-brand-black mb-2">Calendar Email:</p>
+            <code className="text-xs bg-white p-2 rounded block break-all">
+              bwccinternalcalendar@gmail.com
+            </code>
+          </div>
+          <div className="mt-3 p-3 bg-white rounded border border-brand-gold/30">
+            <p className="text-sm font-semibold text-brand-black mb-2">How to Subscribe:</p>
+            <ol className="text-xs text-gray-700 space-y-1 list-decimal list-inside">
+              <li>Click the "Subscribe to Private Calendar" button above</li>
+              <li>The calendar email will be copied to your clipboard</li>
+              <li>Google Calendar will open in a new tab</li>
+              <li>Paste the email (Ctrl+V or Cmd+V) in the "Add calendar" field</li>
+              <li>Click "Add calendar"</li>
+              <li>Events will automatically sync and appear in your calendar</li>
+            </ol>
+          </div>
         </div>
 
         {/* View Controls */}
