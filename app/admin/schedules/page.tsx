@@ -500,11 +500,11 @@ export default function SchedulesPage() {
           <div className="mt-3 p-3 bg-white rounded border border-brand-gold/30">
             <p className="text-sm font-semibold text-brand-black mb-2">How to Subscribe:</p>
             <ol className="text-xs text-gray-700 space-y-1 list-decimal list-inside">
-              <li>Click the "Subscribe to Private Calendar" button above</li>
+              <li>Click the &quot;Subscribe to Private Calendar&quot; button above</li>
               <li>The calendar email will be copied to your clipboard</li>
               <li>Google Calendar will open in a new tab</li>
-              <li>Paste the email (Ctrl+V or Cmd+V) in the "Add calendar" field</li>
-              <li>Click "Add calendar"</li>
+              <li>Paste the email (Ctrl+V or Cmd+V) in the &quot;Add calendar&quot; field</li>
+              <li>Click &quot;Add calendar&quot;</li>
               <li>Events will automatically sync and appear in your calendar</li>
             </ol>
           </div>

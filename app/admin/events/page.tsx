@@ -68,6 +68,7 @@ export default function EventsPage() {
     loadEvents();
     loadCommittees();
     loadPeople();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   const loadCommittees = async () => {
