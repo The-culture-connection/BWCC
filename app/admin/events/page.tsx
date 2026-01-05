@@ -61,7 +61,11 @@ export default function EventsPage() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [showManageCommitteesModal, setShowManageCommitteesModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editFormData, setEditFormData] = useState<Partial<Event>>({});
+  const [editFormData, setEditFormData] = useState<Omit<Partial<Event>, 'date' | 'startTime' | 'endTime'> & {
+    date?: string;
+    startTime?: string;
+    endTime?: string;
+  }>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -779,6 +783,7 @@ function EventContentSection({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     loadContent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
   const loadContent = async () => {

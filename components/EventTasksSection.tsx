@@ -43,6 +43,7 @@ export default function EventTasksSection({ eventId, onTaskCreated }: EventTasks
     loadTasks();
     loadUsers();
     loadCommittees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
   const loadCommittees = async () => {

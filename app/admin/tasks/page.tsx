@@ -445,6 +445,7 @@ export default function TasksPage() {
     loadTasks();
     loadUsers();
     loadCommittees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   const loadUsers = async () => {
