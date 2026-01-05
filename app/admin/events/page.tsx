@@ -5,6 +5,53 @@ import { useEffect, useState } from 'react';
 import { Event, Person } from '@/lib/types/database';
 import EventTasksSection from '@/components/EventTasksSection';
 
+// Format date to avoid timezone shifts by extracting date parts from ISO string or using UTC methods
+const formatDateEastern = (date: Date | string): string => {
+  if (!date) return '-';
+  
+  try {
+    // If it's a string (ISO format), extract date parts directly to avoid timezone conversion
+    if (typeof date === 'string') {
+      const isoMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (isoMatch) {
+        const year = parseInt(isoMatch[1], 10);
+        const month = parseInt(isoMatch[2], 10);
+        const day = parseInt(isoMatch[3], 10);
+        return `${month}/${day}/${year}`;
+      }
+    }
+    
+    // If it's a Date object, use UTC methods to avoid timezone shifts
+    const dateObj = date instanceof Date ? date : new Date(date);
+    if (isNaN(dateObj.getTime())) return '-';
+    
+    // Use UTC methods to get the date as stored (avoids timezone conversion)
+    const year = dateObj.getUTCFullYear();
+    const month = dateObj.getUTCMonth() + 1;
+    const day = dateObj.getUTCDate();
+    
+    return `${month}/${day}/${year}`;
+  } catch (error) {
+    console.error('Error formatting date:', error, date);
+    return '-';
+  }
+};
+
+// Format time in Eastern timezone
+const formatTimeEastern = (date: Date | string): string => {
+  const dateObj = date instanceof Date ? date : new Date(date);
+  if (isNaN(dateObj.getTime())) return '';
+  
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  
+  return formatter.format(dateObj);
+};
+
 export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [committees, setCommittees] = useState<Array<{ id: string; name: string }>>([]);
@@ -181,7 +228,7 @@ export default function EventsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{event.eventType}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {event.date ? new Date(event.date).toLocaleDateString() : '-'}
+                      {event.date ? formatDateEastern(event.date) : '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">{event.location || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -336,9 +383,9 @@ export default function EventsPage() {
                 <div>
                   <h3 className="font-semibold text-gray-700">Date & Time</h3>
                   <p className="text-gray-900">
-                    {selectedEvent.date ? new Date(selectedEvent.date).toLocaleDateString() : '-'}
-                    {selectedEvent.startTime && ` at ${new Date(selectedEvent.startTime).toLocaleTimeString()}`}
-                    {selectedEvent.endTime && ` - ${new Date(selectedEvent.endTime).toLocaleTimeString()}`}
+                    {selectedEvent.date ? formatDateEastern(selectedEvent.date) : '-'}
+                    {selectedEvent.startTime && ` at ${formatTimeEastern(selectedEvent.startTime)}`}
+                    {selectedEvent.endTime && ` - ${formatTimeEastern(selectedEvent.endTime)}`}
                   </p>
                 </div>
                 {selectedEvent.location && (

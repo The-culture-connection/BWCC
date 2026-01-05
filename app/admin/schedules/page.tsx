@@ -5,13 +5,32 @@ import { useEffect, useState } from 'react';
 import { Schedule, Event } from '@/lib/types/database';
 import { getCurrentUser } from '@/lib/firebase/auth';
 import { getCalendarFeedUrl } from '@/lib/utils/get-base-url';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, getDay, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, subDays } from 'date-fns';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
+
+type ViewType = 'month' | 'week' | 'day';
+
+interface CalendarItem {
+  id: string;
+  title: string;
+  description: string;
+  startTime: Date | string;
+  endTime?: Date | string;
+  location: string;
+  type: 'event' | Schedule['type'];
+  isPrivate: boolean;
+  status?: string;
+  eventType?: string;
+}
 
 export default function SchedulesPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [viewType, setViewType] = useState<ViewType>('month');
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [newSchedule, setNewSchedule] = useState({
     title: '',
     description: '',
@@ -53,17 +72,11 @@ export default function SchedulesPage() {
     const url = getCalendarFeedUrl(true);
     
     try {
-      // Copy the calendar feed URL to clipboard
       await navigator.clipboard.writeText(url);
-      
-      // Open Google Calendar "Add by URL" page in a new tab
       window.open('https://calendar.google.com/calendar/u/0/r/settings/addbyurl', '_blank');
-      
-      // Show success message
       alert('Calendar feed URL copied to clipboard! Google Calendar should be open in a new tab.\n\nNext steps:\n1. Paste the URL (Ctrl+V or Cmd+V) in the "URL of calendar" field\n2. Click "Add calendar"\n3. The calendar will automatically sync and update when new events are added');
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);
-      // If clipboard copy fails, still open Google Calendar
       window.open('https://calendar.google.com/calendar/u/0/r/settings/addbyurl', '_blank');
       alert('Google Calendar is opening in a new tab. Please manually copy the calendar feed URL from above and paste it in Google Calendar.');
     }
@@ -95,8 +108,8 @@ export default function SchedulesPage() {
     }
   };
 
-  // Combine events and schedules, then filter by selected date
-  const allItems = [
+  // Combine events and schedules
+  const allItems: CalendarItem[] = [
     ...events.map(event => ({
       id: event.id || '',
       title: event.eventTitle,
@@ -118,34 +131,290 @@ export default function SchedulesPage() {
       location: schedule.location || '',
       type: schedule.type,
       isPrivate: schedule.isPrivate,
-      status: undefined,
-      eventType: undefined,
     })),
   ];
 
-  // Filter by selected date and sort by start time
-  const filteredItems = allItems
-    .filter(item => {
-      const itemDate = new Date(item.startTime).toISOString().split('T')[0];
-      return itemDate === selectedDate;
-    })
-    .sort((a, b) => {
-      const timeA = new Date(a.startTime).getTime();
-      const timeB = new Date(b.startTime).getTime();
+  // Get items for a specific date
+  const getItemsForDate = (date: Date): CalendarItem[] => {
+    return allItems.filter(item => {
+      const itemDate = item.startTime instanceof Date ? item.startTime : new Date(item.startTime);
+      return isSameDay(itemDate, date);
+    }).sort((a, b) => {
+      const timeA = a.startTime instanceof Date ? a.startTime.getTime() : new Date(a.startTime).getTime();
+      const timeB = b.startTime instanceof Date ? b.startTime.getTime() : new Date(b.startTime).getTime();
       return timeA - timeB;
     });
+  };
+
+  // Navigation functions
+  const previousPeriod = () => {
+    if (viewType === 'month') {
+      setCurrentDate(subMonths(currentDate, 1));
+    } else if (viewType === 'week') {
+      setCurrentDate(subWeeks(currentDate, 1));
+    } else {
+      setCurrentDate(subDays(currentDate, 1));
+    }
+  };
+
+  const nextPeriod = () => {
+    if (viewType === 'month') {
+      setCurrentDate(addMonths(currentDate, 1));
+    } else if (viewType === 'week') {
+      setCurrentDate(addWeeks(currentDate, 1));
+    } else {
+      setCurrentDate(addDays(currentDate, 1));
+    }
+  };
+
+  const goToToday = () => {
+    setCurrentDate(new Date());
+    setSelectedDate(new Date());
+  };
+
+  // Month view
+  const renderMonthView = () => {
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    
+    const firstDayOfMonth = getDay(monthStart);
+    const daysArray: (Date | null)[] = [];
+    
+    for (let i = 0; i < firstDayOfMonth; i++) {
+      daysArray.push(null);
+    }
+    
+    daysArray.push(...daysInMonth);
+    
+    const weeks: (Date | null)[][] = [];
+    for (let i = 0; i < daysArray.length; i += 7) {
+      weeks.push(daysArray.slice(i, i + 7));
+    }
+
+    return (
+      <div className="bg-white rounded-lg shadow">
+        <div className="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+            <div key={day} className="bg-gray-50 p-2 text-center font-semibold text-gray-700 text-sm">
+              {day}
+            </div>
+          ))}
+          {weeks.map((week, weekIndex) =>
+            week.map((day, dayIndex) => {
+              if (!day) {
+                return <div key={`empty-${weekIndex}-${dayIndex}`} className="bg-white min-h-[100px] p-1" />;
+              }
+
+              const dayItems = getItemsForDate(day);
+              const isToday = isSameDay(day, new Date());
+              const isSelected = selectedDate && isSameDay(day, selectedDate);
+              const isCurrentMonth = isSameMonth(day, currentDate);
+
+              return (
+                <div
+                  key={day.toISOString()}
+                  onClick={() => setSelectedDate(day)}
+                  className={`
+                    bg-white min-h-[100px] p-1 border-b border-r border-gray-200 cursor-pointer hover:bg-gray-50
+                    ${isCurrentMonth ? '' : 'bg-gray-50 opacity-60'}
+                    ${isToday ? 'bg-brand-gold/20' : ''}
+                    ${isSelected ? 'ring-2 ring-brand-gold' : ''}
+                  `}
+                >
+                  <div className={`text-sm font-semibold mb-1 ${isToday ? 'text-brand-gold' : 'text-gray-900'}`}>
+                    {format(day, 'd')}
+                  </div>
+                  <div className="space-y-1">
+                    {dayItems.slice(0, 3).map((item) => (
+                      <div
+                        key={item.id}
+                        className="text-xs p-1 rounded truncate bg-blue-100 text-blue-800"
+                        title={item.title}
+                      >
+                        {format(item.startTime instanceof Date ? item.startTime : new Date(item.startTime), 'h:mm a')} {item.title}
+                      </div>
+                    ))}
+                    {dayItems.length > 3 && (
+                      <div className="text-xs text-gray-500">
+                        +{dayItems.length - 3} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Week view
+  const renderWeekView = () => {
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+    const weekEnd = endOfWeek(currentDate, { weekStartsOn: 0 });
+    const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+
+    return (
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <div className="min-w-[800px]">
+          <div className="grid grid-cols-8 border-b border-gray-200">
+            <div className="p-2 border-r border-gray-200 bg-gray-50"></div>
+            {weekDays.map((day) => {
+              const isToday = isSameDay(day, new Date());
+              const isSelected = selectedDate && isSameDay(day, selectedDate);
+              return (
+                <div
+                  key={day.toISOString()}
+                  onClick={() => setSelectedDate(day)}
+                  className={`
+                    p-2 text-center border-r border-gray-200 cursor-pointer
+                    ${isToday ? 'bg-brand-gold/20 font-bold' : 'bg-gray-50'}
+                    ${isSelected ? 'ring-2 ring-brand-gold' : ''}
+                  `}
+                >
+                  <div className="text-xs text-gray-600">{format(day, 'EEE')}</div>
+                  <div className={`text-lg ${isToday ? 'text-brand-gold' : 'text-gray-900'}`}>
+                    {format(day, 'd')}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="grid grid-cols-8">
+            <div className="border-r border-gray-200 bg-gray-50">
+              {Array.from({ length: 24 }, (_, i) => (
+                <div key={i} className="h-16 border-b border-gray-100 p-1 text-xs text-gray-500">
+                  {i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}
+                </div>
+              ))}
+            </div>
+            {weekDays.map((day) => {
+              const dayItems = getItemsForDate(day);
+              return (
+                <div key={day.toISOString()} className="border-r border-gray-200">
+                  {Array.from({ length: 24 }, (_, hour) => (
+                    <div key={hour} className="h-16 border-b border-gray-100 relative">
+                      {dayItems
+                        .filter(item => {
+                          const itemDate = item.startTime instanceof Date ? item.startTime : new Date(item.startTime);
+                          return itemDate.getHours() === hour;
+                        })
+                        .map((item) => (
+                          <div
+                            key={item.id}
+                            className="absolute top-0 left-0 right-0 mx-1 bg-blue-500 text-white text-xs p-1 rounded truncate"
+                            title={item.title}
+                          >
+                            {format(item.startTime instanceof Date ? item.startTime : new Date(item.startTime), 'h:mm a')} {item.title}
+                          </div>
+                        ))}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Day view
+  const renderDayView = () => {
+    const dayItems = getItemsForDate(currentDate);
+
+    return (
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-4 border-b border-gray-200">
+          <div className="text-2xl font-bold text-gray-900">
+            {format(currentDate, 'EEEE, MMMM d, yyyy')}
+          </div>
+        </div>
+        <div className="divide-y divide-gray-200">
+          {dayItems.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">No events or schedules for this day</div>
+          ) : (
+            dayItems.map((item) => (
+              <div key={item.id} className="p-4 hover:bg-gray-50">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-20 text-sm text-gray-600">
+                    {format(item.startTime instanceof Date ? item.startTime : new Date(item.startTime), 'h:mm a')}
+                    {item.endTime && (
+                      <>
+                        <br />
+                        {format(item.endTime instanceof Date ? item.endTime : new Date(item.endTime), 'h:mm a')}
+                      </>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-gray-900">{item.title}</h3>
+                      {item.type === 'event' && item.status && (
+                        <span className={`px-2 py-0.5 text-xs rounded ${
+                          item.status === 'Approved' 
+                            ? 'bg-green-100 text-green-800' 
+                            : item.status === 'Pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {item.status}
+                        </span>
+                      )}
+                      {item.eventType && (
+                        <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
+                          {item.eventType}
+                        </span>
+                      )}
+                      {item.isPrivate && (
+                        <span className="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded">Private</span>
+                      )}
+                      <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-800 rounded capitalize">{item.type}</span>
+                    </div>
+                    {item.location && (
+                      <div className="flex items-center gap-1 text-sm text-gray-600 mb-1">
+                        <MapPin size={14} />
+                        {item.location}
+                      </div>
+                    )}
+                    {item.description && (
+                      <p className="text-sm text-gray-700">{item.description}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const getViewTitle = () => {
+    if (viewType === 'month') {
+      return format(currentDate, 'MMMM yyyy');
+    } else if (viewType === 'week') {
+      const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+      const weekEnd = endOfWeek(currentDate, { weekStartsOn: 0 });
+      return `${format(weekStart, 'MMM d')} - ${format(weekEnd, 'MMM d, yyyy')}`;
+    } else {
+      return format(currentDate, 'EEEE, MMMM d, yyyy');
+    }
+  };
 
   return (
     <AdminLayout>
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-brand-black">Schedules</h1>
           <div className="flex gap-4">
             <button
               onClick={handleSubscribeToPrivateCalendar}
               className="px-4 py-2 bg-brand-brown text-white rounded-lg hover:bg-brand-gold hover:text-brand-black font-medium flex items-center gap-2"
             >
-              📅 Subscribe to Private Calendar
+              <CalendarIcon size={18} />
+              Subscribe to Private Calendar
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
@@ -157,89 +426,90 @@ export default function SchedulesPage() {
         </div>
         
         {/* Private Calendar Info */}
-        <div className="bg-brand-cream rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-bold text-brand-black mb-2">Private Calendar Subscription</h2>
-          <p className="text-gray-700 mb-4">
-            Subscribe to the private calendar to automatically receive all private events, meetings, and schedules.
-            The calendar feed URL will be copied to your clipboard, and Google Calendar will open for you to paste and subscribe.
+        <div className="bg-brand-cream rounded-lg shadow p-4 mb-6">
+          <h2 className="text-lg font-bold text-brand-black mb-2">Private Calendar Subscription</h2>
+          <p className="text-sm text-gray-700 mb-2">
+            Subscribe to the private calendar to automatically receive all approved events, meetings, and schedules.
           </p>
-          <div className="bg-white rounded-lg p-4">
-            <p className="text-sm text-gray-600 mb-2 font-medium">Calendar Feed URL:</p>
-            <code className="text-xs bg-gray-100 p-2 rounded block break-all">
-              {getCalendarFeedUrl(true)}
-            </code>
-            <p className="text-xs text-gray-500 mt-2">
-              This calendar will automatically update when new events are added to the website.
-            </p>
+          <code className="text-xs bg-white p-2 rounded block break-all">
+            {getCalendarFeedUrl(true)}
+          </code>
+        </div>
+
+        {/* View Controls */}
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setViewType('month')}
+                  className={`px-4 py-2 rounded-lg font-medium ${
+                    viewType === 'month' 
+                      ? 'bg-brand-gold text-brand-black' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Month
+                </button>
+                <button
+                  onClick={() => setViewType('week')}
+                  className={`px-4 py-2 rounded-lg font-medium ${
+                    viewType === 'week' 
+                      ? 'bg-brand-gold text-brand-black' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Week
+                </button>
+                <button
+                  onClick={() => setViewType('day')}
+                  className={`px-4 py-2 rounded-lg font-medium ${
+                    viewType === 'day' 
+                      ? 'bg-brand-gold text-brand-black' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Day
+                </button>
+              </div>
+              <button
+                onClick={goToToday}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+              >
+                Today
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={previousPeriod}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+                aria-label="Previous"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <h2 className="text-xl font-bold text-brand-black min-w-[200px] text-center">
+                {getViewTitle()}
+              </h2>
+              <button
+                onClick={nextPeriod}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+                aria-label="Next"
+              >
+                <ChevronRight size={24} />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Date Filter */}
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">View Date</label>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg"
-          />
-        </div>
-
-        {/* Events and Schedules List */}
+        {/* Calendar View */}
         {loading ? (
           <div className="text-center py-8">Loading...</div>
         ) : (
-          <div className="bg-white rounded-lg shadow">
-            {filteredItems.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                No events or schedule items for this date
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-200">
-                {filteredItems.map((item) => (
-                  <div key={item.id} className="p-6 hover:bg-gray-50">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-brand-black">{item.title}</h3>
-                          {item.type === 'event' && (item as any).status && (
-                            <span className={`px-2 py-1 text-xs rounded ${
-                              (item as any).status === 'Approved' 
-                                ? 'bg-green-100 text-green-800' 
-                                : (item as any).status === 'Pending'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {(item as any).status}
-                            </span>
-                          )}
-                          {(item as any).eventType && (
-                            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                              {(item as any).eventType}
-                            </span>
-                          )}
-                          {item.isPrivate && (
-                            <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded">Private</span>
-                          )}
-                          <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded capitalize">{item.type}</span>
-                        </div>
-                        <p className="text-gray-600 mb-2">
-                          {new Date(item.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          {item.endTime && ` - ${new Date(item.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-                        </p>
-                        {item.location && (
-                          <p className="text-sm text-gray-500 mb-2">📍 {item.location}</p>
-                        )}
-                        {item.description && (
-                          <p className="text-gray-700">{item.description}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <>
+            {viewType === 'month' && renderMonthView()}
+            {viewType === 'week' && renderWeekView()}
+            {viewType === 'day' && renderDayView()}
+          </>
         )}
 
         {/* Create Schedule Modal */}
@@ -341,4 +611,3 @@ export default function SchedulesPage() {
     </AdminLayout>
   );
 }
-
