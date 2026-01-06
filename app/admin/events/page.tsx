@@ -144,6 +144,7 @@ export default function EventsPage() {
       isPublicEvent: selectedEvent.isPublicEvent,
       marketingStatus: selectedEvent.marketingStatus,
       participantCriteria: selectedEvent.participantCriteria || '',
+      virtualMeetingLink: selectedEvent.virtualMeetingLink || '',
       date: date ? date.toISOString().split('T')[0] : '',
       startTime: startTime ? new Date(startTime.getTime() - startTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
       endTime: endTime ? new Date(endTime.getTime() - endTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
@@ -169,6 +170,7 @@ export default function EventsPage() {
         isPublicEvent: editFormData.isPublicEvent,
         marketingStatus: editFormData.marketingStatus,
         participantCriteria: editFormData.participantCriteria,
+        virtualMeetingLink: editFormData.virtualMeetingLink,
       };
 
       // Convert date strings to Date objects
@@ -662,6 +664,20 @@ export default function EventsPage() {
                     />
                   ) : (
                     <p className="text-gray-900 whitespace-pre-wrap">{selectedEvent.participantCriteria || '-'}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">Virtual Meeting Link</label>
+                  {isEditing ? (
+                    <textarea
+                      value={editFormData.virtualMeetingLink || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, virtualMeetingLink: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      rows={6}
+                      placeholder="Paste the full meeting details including link, Meeting ID, and Passcode"
+                    />
+                  ) : (
+                    <p className="text-gray-900 whitespace-pre-wrap">{selectedEvent.virtualMeetingLink || '-'}</p>
                   )}
                 </div>
 

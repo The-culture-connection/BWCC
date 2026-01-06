@@ -61,18 +61,28 @@ export async function GET(request: NextRequest) {
         break;
 
       case 'volunteers':
-        const volunteers = await getVolunteers();
-        csv = convertToCSV(volunteers.map(v => ({
-          name: v.name,
-          email: v.email,
+        // Source volunteers from people collection where role is "Volunteer"
+        if (!adminDb) throw new Error('Firebase Admin not initialized');
+        const volunteersSnapshot = await adminDb.collection('people')
+          .where('role', '==', 'Volunteer')
+          .orderBy('createdAt', 'desc')
+          .get();
+        const volunteers = volunteersSnapshot.docs.map(doc => convertTimestamps({ id: doc.id, ...doc.data() }));
+        csv = convertToCSV(volunteers.map((v: any) => ({
+          id: v.id || '',
+          name: v.name || '',
+          email: v.email || '',
           phone: v.phone || '',
+          role: v.role || '',
+          status: v.status || '',
           organization: v.organization || '',
-          supportTypes: v.supportTypes?.join('; ') || '',
-          availability: v.availability || '',
-          skills: v.skills || '',
-          workWithYouth: v.workWithYouth || '',
-          transportation: v.transportation || '',
+          expertiseAreas: Array.isArray(v.expertiseAreas) ? v.expertiseAreas.join('; ') : '',
+          assignedEventId: v.assignedEventId || '',
+          relatedEventIds: Array.isArray(v.relatedEventIds) ? v.relatedEventIds.join('; ') : '',
+          relatedTaskIds: Array.isArray(v.relatedTaskIds) ? v.relatedTaskIds.join('; ') : '',
+          sendConfirmationEmail: v.sendConfirmationEmail || false,
           createdAt: v.createdAt?.toISOString() || '',
+          updatedAt: v.updatedAt?.toISOString() || '',
         })));
         filename = `volunteers-${new Date().toISOString().split('T')[0]}.csv`;
         break;

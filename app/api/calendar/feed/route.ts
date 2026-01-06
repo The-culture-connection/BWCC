@@ -236,6 +236,7 @@ export async function GET(request: NextRequest) {
       const title = event.eventTitle || 'Untitled Event';
       const purpose = event.purpose || '';
       const location = event.location || '';
+      const virtualMeetingLink = event.virtualMeetingLink || '';
       
       // Get start date/time - prefer startTime, fall back to date
       const startDateObj = event.startTime || event.date;
@@ -355,8 +356,16 @@ export async function GET(request: NextRequest) {
         icsContent += foldLine(`SUMMARY:${escapeText(title)}${crlf}`);
       }
       
+      // Build description with purpose and virtual meeting link
+      let descriptionParts: string[] = [];
       if (purpose) {
-        icsContent += foldLine(`DESCRIPTION:${escapeText(purpose)}${crlf}`);
+        descriptionParts.push(purpose);
+      }
+      if (virtualMeetingLink) {
+        descriptionParts.push(`\nVirtual Meeting:\n${virtualMeetingLink}`);
+      }
+      if (descriptionParts.length > 0) {
+        icsContent += foldLine(`DESCRIPTION:${escapeText(descriptionParts.join('\n\n'))}${crlf}`);
       }
       
       if (location) {
@@ -374,6 +383,7 @@ export async function GET(request: NextRequest) {
       const title = meeting.title || 'Untitled Meeting';
       const description = meeting.description || '';
       const location = meeting.location || '';
+      const virtualMeetingLink = meeting.virtualMeetingLink || '';
       
       // Get start date/time - prefer startTime, fall back to date
       const startDateObj = meeting.startTime || meeting.date;
@@ -480,8 +490,16 @@ export async function GET(request: NextRequest) {
         icsContent += foldLine(`SUMMARY:${escapeText(title)}${crlf}`);
       }
       
+      // Build description with meeting description and virtual meeting link
+      let meetingDescriptionParts: string[] = [];
       if (description) {
-        icsContent += foldLine(`DESCRIPTION:${escapeText(description)}${crlf}`);
+        meetingDescriptionParts.push(description);
+      }
+      if (virtualMeetingLink) {
+        meetingDescriptionParts.push(`\nVirtual Meeting:\n${virtualMeetingLink}`);
+      }
+      if (meetingDescriptionParts.length > 0) {
+        icsContent += foldLine(`DESCRIPTION:${escapeText(meetingDescriptionParts.join('\n\n'))}${crlf}`);
       }
       
       if (location) {

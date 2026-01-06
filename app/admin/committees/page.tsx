@@ -31,6 +31,7 @@ export default function CommitteesPage() {
     endTime: '',
     location: '',
     minutes: '',
+    virtualMeetingLink: '',
   });
 
   useEffect(() => {
@@ -161,6 +162,7 @@ export default function CommitteesPage() {
           endTime: '',
           location: '',
           minutes: '',
+          virtualMeetingLink: '',
         });
         setShowCreateMeeting(false);
         if (selectedCommittee) {

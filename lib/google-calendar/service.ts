@@ -188,6 +188,7 @@ export async function syncEventToGoogleCalendar(
         event.description && `Description: ${event.description}`,
         event.location && `Location: ${event.location}`,
         event.eventType && `Type: ${event.eventType}`,
+        event.virtualMeetingLink && `\nVirtual Meeting:\n${event.virtualMeetingLink}`,
       ].filter(Boolean).join('\n\n'),
       location: event.location || undefined,
       start: {
@@ -313,7 +314,10 @@ export async function syncMeetingToGoogleCalendar(
 
     const calendarEvent: any = {
       summary: meeting.title,
-      description: meeting.description || undefined,
+      description: [
+        meeting.description,
+        meeting.virtualMeetingLink && `\nVirtual Meeting:\n${meeting.virtualMeetingLink}`,
+      ].filter(Boolean).join('\n\n') || undefined,
       location: meeting.location || undefined,
       start: {
         dateTime: formatDateForGoogleCalendar(startDate),

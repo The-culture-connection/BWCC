@@ -40,6 +40,7 @@ export default function NewEventPage() {
     participantCriteria: '',
     compensationOffered: '',
     relatedCommitteeIds: [] as string[],
+    virtualMeetingLink: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -258,6 +259,23 @@ export default function NewEventPage() {
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Virtual Meeting Link (Zoom, Google Meet, etc.)
+            </label>
+            <textarea
+              name="virtualMeetingLink"
+              value={formData.virtualMeetingLink}
+              onChange={handleChange}
+              rows={6}
+              placeholder="Paste the full meeting details including link, Meeting ID, and Passcode"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Include the full meeting information: link, Meeting ID, and Passcode
+            </p>
           </div>
 
           <div>

@@ -67,6 +67,7 @@ export interface Event {
   relatedPersonIds?: string[]; // Person IDs (for panelists/volunteers/partners)
   content?: EventContent; // Collected content for the event
   googleCalendarEventId?: string; // Google Calendar event ID for private events
+  virtualMeetingLink?: string; // Virtual meeting link (Zoom, Google Meet, etc.)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -169,6 +170,7 @@ export interface Meeting {
   committeeId?: string;
   minutes?: string; // Meeting minutes content
   googleCalendarEventId?: string; // Google Calendar event ID
+  virtualMeetingLink?: string; // Virtual meeting link (Zoom, Google Meet, etc.)
   createdAt: Date;
   updatedAt: Date;
   createdBy: string;
