@@ -16,6 +16,7 @@ export default function CommitteesPage() {
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [selectedCommittee, setSelectedCommittee] = useState<Committee | null>(null);
   const [committeeTasks, setCommitteeTasks] = useState<Task[]>([]);
   const [committeeMeetings, setCommitteeMeetings] = useState<Meeting[]>([]);
@@ -35,6 +36,10 @@ export default function CommitteesPage() {
   });
 
   useEffect(() => {
+    const user = getCurrentUser();
+    if (user) {
+      setCurrentUserId(user.uid);
+    }
     loadCommittees();
     loadUsers();
   }, []);
@@ -283,40 +288,96 @@ export default function CommitteesPage() {
         {loading ? (
           <div className="text-center py-8">Loading...</div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {committees.map((committee) => (
-              <div
-                key={committee.id}
-                className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={async () => {
-                  // Fetch fresh data to ensure we have correct arrays
-                  try {
-                    const response = await fetch(`/api/admin/committees?id=${committee.id}`);
-                    const data = await response.json();
-                    if (data.committee) {
-                      setSelectedCommittee(data.committee);
-                    } else {
-                      setSelectedCommittee(committee);
-                    }
-                  } catch (error) {
-                    console.error('Error loading committee:', error);
-                    setSelectedCommittee(committee);
-                  }
-                }}
-              >
-                <h3 className="text-xl font-bold text-brand-black mb-2">{committee.name}</h3>
-                {committee.description && (
-                  <p className="text-sm text-gray-600 mb-4">{committee.description}</p>
-                )}
-                <div className="text-xs text-gray-500 space-y-1">
-                  <p>Members: {committee.members?.length || 0}</p>
-                  <p>Tasks: {committee.relatedTaskIds?.length || 0}</p>
-                  <p>Meetings: {committee.relatedMeetingIds?.length || 0}</p>
-                  <p>Events: {committee.relatedEventIds?.length || 0}</p>
-                </div>
+          <>
+            {/* Your Committees Section */}
+            {currentUserId && (() => {
+              const yourCommittees = committees.filter(committee => 
+                Array.isArray(committee.members) && committee.members.includes(currentUserId)
+              );
+              
+              if (yourCommittees.length > 0) {
+                return (
+                  <div className="mb-8">
+                    <h2 className="text-2xl font-bold text-brand-black mb-4">Your Committees</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {yourCommittees.map((committee) => (
+                        <div
+                          key={committee.id}
+                          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                          onClick={async () => {
+                            // Fetch fresh data to ensure we have correct arrays
+                            try {
+                              const response = await fetch(`/api/admin/committees?id=${committee.id}`);
+                              const data = await response.json();
+                              if (data.committee) {
+                                setSelectedCommittee(data.committee);
+                              } else {
+                                setSelectedCommittee(committee);
+                              }
+                            } catch (error) {
+                              console.error('Error loading committee:', error);
+                              setSelectedCommittee(committee);
+                            }
+                          }}
+                        >
+                          <h3 className="text-xl font-bold text-brand-black mb-2">{committee.name}</h3>
+                          {committee.description && (
+                            <p className="text-sm text-gray-600 mb-4">{committee.description}</p>
+                          )}
+                          <div className="text-xs text-gray-500 space-y-1">
+                            <p>Members: {committee.members?.length || 0}</p>
+                            <p>Tasks: {committee.relatedTaskIds?.length || 0}</p>
+                            <p>Meetings: {committee.relatedMeetingIds?.length || 0}</p>
+                            <p>Events: {committee.relatedEventIds?.length || 0}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* All Committees Section */}
+            <div>
+              <h2 className="text-2xl font-bold text-brand-black mb-4">All Committees</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {committees.map((committee) => (
+                  <div
+                    key={committee.id}
+                    className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                    onClick={async () => {
+                      // Fetch fresh data to ensure we have correct arrays
+                      try {
+                        const response = await fetch(`/api/admin/committees?id=${committee.id}`);
+                        const data = await response.json();
+                        if (data.committee) {
+                          setSelectedCommittee(data.committee);
+                        } else {
+                          setSelectedCommittee(committee);
+                        }
+                      } catch (error) {
+                        console.error('Error loading committee:', error);
+                        setSelectedCommittee(committee);
+                      }
+                    }}
+                  >
+                    <h3 className="text-xl font-bold text-brand-black mb-2">{committee.name}</h3>
+                    {committee.description && (
+                      <p className="text-sm text-gray-600 mb-4">{committee.description}</p>
+                    )}
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <p>Members: {committee.members?.length || 0}</p>
+                      <p>Tasks: {committee.relatedTaskIds?.length || 0}</p>
+                      <p>Meetings: {committee.relatedMeetingIds?.length || 0}</p>
+                      <p>Events: {committee.relatedEventIds?.length || 0}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          </>
         )}
 
         {/* Committee Detail Modal */}
