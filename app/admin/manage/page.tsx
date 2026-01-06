@@ -2,7 +2,7 @@
 
 import AdminLayout from '@/components/AdminLayout';
 import { useState, useEffect } from 'react';
-import { getCurrentUser } from '@/lib/firebase/auth';
+import { getCurrentUser, changePassword } from '@/lib/firebase/auth';
 import { Committee } from '@/lib/types/database';
 
 interface User {
@@ -16,13 +16,41 @@ export default function AdminManagePage() {
   const [users, setUsers] = useState<User[]>([]);
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'users' | 'committees'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'committees' | 'password'>('users');
+  const [currentUserRole, setCurrentUserRole] = useState<string>('');
+  const [currentUserId, setCurrentUserId] = useState<string>('');
   
   // User creation form
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
     password: '',
+    role: 'staff' as 'admin' | 'board' | 'staff',
+  });
+
+  // Change password form
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  // Profile editing form
+  const [profileForm, setProfileForm] = useState({
+    name: '',
+    role: 'staff' as 'admin' | 'board' | 'staff',
+  });
+  const [profileError, setProfileError] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // Edit user state
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editUserForm, setEditUserForm] = useState({
+    name: '',
     role: 'staff' as 'admin' | 'board' | 'staff',
   });
 
@@ -35,7 +63,34 @@ export default function AdminManagePage() {
   useEffect(() => {
     loadUsers();
     loadCommittees();
+    loadCurrentUser();
   }, []);
+
+  const loadCurrentUser = async () => {
+    const user = getCurrentUser();
+    if (user) {
+      setCurrentUserId(user.uid);
+      try {
+        const idToken = await user.getIdToken();
+        const response = await fetch('/api/admin/auth/check', {
+          headers: { 'Authorization': `Bearer ${idToken}` },
+        });
+        const data = await response.json();
+        if (data.user) {
+          setCurrentUserRole(data.user.role || 'staff');
+          // Load current user's profile data from the response
+          if (data.user.name || data.user.role) {
+            setProfileForm({
+              name: data.user.name || '',
+              role: (data.user.role || 'staff') as 'admin' | 'board' | 'staff',
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading current user:', error);
+      }
+    }
+  };
 
   const loadUsers = async () => {
     try {
@@ -48,7 +103,20 @@ export default function AdminManagePage() {
         },
       });
       const data = await response.json();
-      setUsers(data.users || []);
+      const loadedUsers = data.users || [];
+      setUsers(loadedUsers);
+      
+      // Update profile form if current user is in the list
+      const user = getCurrentUser();
+      if (user) {
+        const currentUser = loadedUsers.find((u: User) => u.uid === user.uid);
+        if (currentUser) {
+          setProfileForm({
+            name: currentUser.name || '',
+            role: currentUser.role as 'admin' | 'board' | 'staff',
+          });
+        }
+      }
     } catch (error) {
       console.error('Error loading users:', error);
     } finally {
@@ -135,6 +203,60 @@ export default function AdminManagePage() {
     }
   };
 
+  const handleChangePassword = async () => {
+    const user = getCurrentUser();
+    if (!user) {
+      setPasswordError('You must be logged in');
+      return;
+    }
+
+    // Check if user signed in with email/password (not Google)
+    const providers = user.providerData;
+    const hasEmailProvider = providers.some(p => p.providerId === 'password');
+    
+    if (!hasEmailProvider) {
+      setPasswordError('Password change is only available for email/password accounts. Google sign-in users cannot change password here.');
+      return;
+    }
+
+    setPasswordError('');
+    setPasswordSuccess('');
+    
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setPasswordError('All fields are required');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters');
+      return;
+    }
+
+    setChangingPassword(true);
+
+    try {
+      await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      setPasswordSuccess('Password changed successfully!');
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      if (error.code === 'auth/wrong-password') {
+        setPasswordError('Current password is incorrect');
+      } else if (error.code === 'auth/weak-password') {
+        setPasswordError('New password is too weak');
+      } else {
+        setPasswordError(error.message || 'Failed to change password');
+      }
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   if (loading) {
     return (
       <AdminLayout>
@@ -170,6 +292,16 @@ export default function AdminManagePage() {
               }`}
             >
               Committees
+            </button>
+            <button
+              onClick={() => setActiveTab('password')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'password'
+                  ? 'border-brand-gold text-brand-black'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Change Password
             </button>
           </nav>
         </div>
@@ -328,6 +460,182 @@ export default function AdminManagePage() {
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Change Password Tab */}
+        {activeTab === 'password' && (
+          <div className="space-y-6">
+            {/* Profile Editing Section */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-bold text-brand-black mb-4">Edit Your Profile</h2>
+              
+              {profileError && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                  {profileError}
+                </div>
+              )}
+
+              {profileSuccess && (
+                <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+                  {profileSuccess}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={profileForm.name}
+                    onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    required
+                    placeholder="Enter your name"
+                  />
+                </div>
+                {currentUserRole === 'admin' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Role *
+                    </label>
+                    <select
+                      value={profileForm.role}
+                      onChange={(e) => setProfileForm({ ...profileForm, role: e.target.value as any })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="staff">Staff</option>
+                      <option value="board">Board</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                )}
+                <button
+                  onClick={async () => {
+                    const user = getCurrentUser();
+                    if (!user) {
+                      setProfileError('You must be logged in');
+                      return;
+                    }
+
+                    if (!profileForm.name.trim()) {
+                      setProfileError('Name is required');
+                      return;
+                    }
+
+                    setProfileError('');
+                    setProfileSuccess('');
+                    setSavingProfile(true);
+
+                    try {
+                      const idToken = await user.getIdToken();
+                      const response = await fetch(`/api/admin/users/${user.uid}`, {
+                        method: 'PATCH',
+                        headers: { 
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${idToken}`,
+                        },
+                        body: JSON.stringify({
+                          name: profileForm.name,
+                          role: currentUserRole === 'admin' ? profileForm.role : undefined,
+                          idToken,
+                        }),
+                      });
+
+                      if (response.ok) {
+                        setProfileSuccess('Profile updated successfully!');
+                        await loadUsers();
+                        await loadCurrentUser();
+                      } else {
+                        const data = await response.json();
+                        setProfileError(data.error || 'Failed to update profile');
+                      }
+                    } catch (error: any) {
+                      console.error('Error updating profile:', error);
+                      setProfileError(error.message || 'Failed to update profile');
+                    } finally {
+                      setSavingProfile(false);
+                    }
+                  }}
+                  disabled={savingProfile}
+                  className="px-4 py-2 bg-brand-gold text-brand-black rounded-lg hover:bg-brand-tan font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingProfile ? 'Saving...' : 'Save Profile'}
+                </button>
+              </div>
+            </div>
+
+            {/* Change Password Section */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-bold text-brand-black mb-4">Change Your Password</h2>
+              <p className="text-sm text-gray-600 mb-6">
+                Only users who signed in with email/password can change their password here. 
+                Google sign-in users manage their passwords through their Google account.
+              </p>
+              
+              {passwordError && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                  {passwordError}
+                </div>
+              )}
+
+              {passwordSuccess && (
+                <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+                  {passwordSuccess}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Current Password *
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    required
+                    placeholder="Enter your current password"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    New Password *
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    required
+                    placeholder="Enter your new password (min 6 characters)"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirm New Password *
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    required
+                    placeholder="Confirm your new password"
+                  />
+                </div>
+                <button
+                  onClick={handleChangePassword}
+                  disabled={changingPassword}
+                  className="px-4 py-2 bg-brand-gold text-brand-black rounded-lg hover:bg-brand-tan font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {changingPassword ? 'Changing Password...' : 'Change Password'}
+                </button>
               </div>
             </div>
           </div>

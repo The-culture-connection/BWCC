@@ -493,9 +493,9 @@ export default function SchedulesPage() {
           )}
           <div className="mb-3">
             <p className="text-sm font-semibold text-brand-black mb-2">Calendar Email:</p>
-            <code className="text-xs bg-white p-2 rounded block break-all">
+          <code className="text-xs bg-white p-2 rounded block break-all">
               bwccinternalcalendar@gmail.com
-            </code>
+          </code>
           </div>
           <div className="mt-3 p-3 bg-white rounded border border-brand-gold/30">
             <p className="text-sm font-semibold text-brand-black mb-2">How to Subscribe:</p>

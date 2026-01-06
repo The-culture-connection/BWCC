@@ -402,15 +402,15 @@ export default function EventsPage() {
                       </button>
                     </>
                   )}
-                  <button
+                <button
                     onClick={() => {
                       setIsEditing(false);
                       setSelectedEvent(null);
                     }}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    ✕
-                  </button>
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
                 </div>
               </div>
               
@@ -539,8 +539,8 @@ export default function EventsPage() {
                     ) : (
                       <p className="text-gray-900">{selectedEvent.eventType}</p>
                     )}
-                  </div>
-                  <div>
+                </div>
+                <div>
                     <label className="block font-semibold text-gray-700 mb-1">Date</label>
                     {isEditing ? (
                       <input
@@ -552,7 +552,7 @@ export default function EventsPage() {
                     ) : (
                       <p className="text-gray-900">{selectedEvent.date ? formatDateEastern(selectedEvent.date) : '-'}</p>
                     )}
-                  </div>
+                </div>
                   <div>
                     <label className="block font-semibold text-gray-700 mb-1">Start Time</label>
                     {isEditing ? (
