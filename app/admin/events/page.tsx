@@ -677,8 +677,29 @@ export default function EventsPage() {
                       rows={6}
                       placeholder="Paste the full meeting details including link, Meeting ID, and Passcode"
                     />
+                  ) : selectedEvent.virtualMeetingLink ? (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-sm font-semibold text-green-800 mb-2">📹 Google Meet Link</p>
+                      <a 
+                        href={selectedEvent.virtualMeetingLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:text-blue-800 underline break-all block mb-2"
+                      >
+                        {selectedEvent.virtualMeetingLink}
+                      </a>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedEvent.virtualMeetingLink || '');
+                          alert('Meeting link copied to clipboard!');
+                        }}
+                        className="text-xs px-3 py-1 bg-white border border-green-300 text-green-700 rounded hover:bg-green-100"
+                      >
+                        Copy Link
+                      </button>
+                    </div>
                   ) : (
-                    <p className="text-gray-900 whitespace-pre-wrap">{selectedEvent.virtualMeetingLink || '-'}</p>
+                    <p className="text-gray-500 text-sm">No virtual meeting link set. A Google Meet link will be automatically generated when the event is synced to Google Calendar.</p>
                   )}
                 </div>
 

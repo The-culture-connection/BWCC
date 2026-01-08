@@ -582,6 +582,28 @@ export default function CommitteesPage() {
                           {meeting.description && (
                             <p className="text-sm text-gray-600 mb-2">{meeting.description}</p>
                           )}
+                          {meeting.virtualMeetingLink && (
+                            <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <p className="text-xs font-semibold text-green-800 mb-2">📹 Google Meet Link</p>
+                              <a 
+                                href={meeting.virtualMeetingLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-blue-600 hover:text-blue-800 underline break-all"
+                              >
+                                {meeting.virtualMeetingLink}
+                              </a>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(meeting.virtualMeetingLink || '');
+                                  alert('Meeting link copied to clipboard!');
+                                }}
+                                className="ml-2 text-xs px-2 py-1 bg-white border border-green-300 text-green-700 rounded hover:bg-green-100"
+                              >
+                                Copy Link
+                              </button>
+                            </div>
+                          )}
                           <div>
                             <label className="block text-xs font-medium text-gray-700 mb-1">Meeting Minutes</label>
                             <textarea
