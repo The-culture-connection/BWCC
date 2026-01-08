@@ -1,6 +1,7 @@
 'use client';
 
 import AdminLayout from '@/components/AdminLayout';
+import SuggestionButton from '@/components/SuggestionButton';
 import { useEffect, useState } from 'react';
 import { Request, Decision, RequestStatus } from '@/lib/types/database';
 
@@ -232,6 +233,7 @@ export default function RequestsPage() {
           </div>
         )}
       </div>
+      <SuggestionButton />
     </AdminLayout>
   );
 }

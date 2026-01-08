@@ -1,6 +1,7 @@
 'use client';
 
 import AdminLayout from '@/components/AdminLayout';
+import SuggestionButton from '@/components/SuggestionButton';
 import { useState, useEffect } from 'react';
 import { Committee, Task, Meeting, Person, Event } from '@/lib/types/database';
 import { getCurrentUser } from '@/lib/firebase/auth';
@@ -744,6 +745,7 @@ export default function CommitteesPage() {
           </div>
         )}
       </div>
+      <SuggestionButton />
     </AdminLayout>
   );
 }

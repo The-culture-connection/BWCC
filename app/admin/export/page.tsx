@@ -1,6 +1,7 @@
 'use client';
 
 import AdminLayout from '@/components/AdminLayout';
+import SuggestionButton from '@/components/SuggestionButton';
 
 export default function ExportPage() {
   const handleExport = async (type: string) => {
@@ -62,6 +63,7 @@ export default function ExportPage() {
           </div>
         </div>
       </div>
+      <SuggestionButton />
     </AdminLayout>
   );
 }

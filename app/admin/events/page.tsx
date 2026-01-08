@@ -1,6 +1,7 @@
 'use client';
 
 import AdminLayout from '@/components/AdminLayout';
+import SuggestionButton from '@/components/SuggestionButton';
 import { useEffect, useState } from 'react';
 import { Event, Person } from '@/lib/types/database';
 import EventTasksSection from '@/components/EventTasksSection';
@@ -784,6 +785,7 @@ export default function EventsPage() {
           </div>
         )}
       </div>
+      <SuggestionButton />
     </AdminLayout>
   );
 }

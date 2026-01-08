@@ -68,22 +68,41 @@ export async function GET(request: NextRequest) {
           .orderBy('createdAt', 'desc')
           .get();
         const volunteers = volunteersSnapshot.docs.map(doc => convertTimestamps({ id: doc.id, ...doc.data() }));
-        csv = convertToCSV(volunteers.map((v: any) => ({
-          id: v.id || '',
-          name: v.name || '',
-          email: v.email || '',
-          phone: v.phone || '',
-          role: v.role || '',
-          status: v.status || '',
-          organization: v.organization || '',
-          expertiseAreas: Array.isArray(v.expertiseAreas) ? v.expertiseAreas.join('; ') : '',
-          assignedEventId: v.assignedEventId || '',
-          relatedEventIds: Array.isArray(v.relatedEventIds) ? v.relatedEventIds.join('; ') : '',
-          relatedTaskIds: Array.isArray(v.relatedTaskIds) ? v.relatedTaskIds.join('; ') : '',
-          sendConfirmationEmail: v.sendConfirmationEmail || false,
-          createdAt: v.createdAt?.toISOString() || '',
-          updatedAt: v.updatedAt?.toISOString() || '',
-        })));
+        csv = convertToCSV(volunteers.map((v: any) => {
+          // Handle expertiseAreas - ensure it's properly converted to string
+          let expertiseAreasStr = '';
+          if (v.expertiseAreas) {
+            if (Array.isArray(v.expertiseAreas)) {
+              expertiseAreasStr = v.expertiseAreas
+                .filter((area: any) => typeof area === 'string')
+                .join('; ');
+            } else if (typeof v.expertiseAreas === 'object') {
+              // Convert object with numeric keys back to array
+              expertiseAreasStr = Object.values(v.expertiseAreas)
+                .filter((area: any) => typeof area === 'string')
+                .join('; ');
+            } else if (typeof v.expertiseAreas === 'string') {
+              expertiseAreasStr = v.expertiseAreas;
+            }
+          }
+          
+          return {
+            id: v.id || '',
+            name: v.name || '',
+            email: v.email || '',
+            phone: v.phone || '',
+            role: v.role || '',
+            status: v.status || '',
+            organization: v.organization || '',
+            expertiseAreas: expertiseAreasStr,
+            assignedEventId: v.assignedEventId || '',
+            relatedEventIds: Array.isArray(v.relatedEventIds) ? v.relatedEventIds.join('; ') : '',
+            relatedTaskIds: Array.isArray(v.relatedTaskIds) ? v.relatedTaskIds.join('; ') : '',
+            sendConfirmationEmail: v.sendConfirmationEmail || false,
+            createdAt: v.createdAt?.toISOString() || '',
+            updatedAt: v.updatedAt?.toISOString() || '',
+          };
+        }));
         filename = `volunteers-${new Date().toISOString().split('T')[0]}.csv`;
         break;
 
@@ -137,16 +156,35 @@ export async function GET(request: NextRequest) {
           .orderBy('createdAt', 'desc')
           .get();
         const people = peopleSnapshot.docs.map(doc => convertTimestamps({ id: doc.id, ...doc.data() }));
-        csv = convertToCSV(people.map((p: any) => ({
-          id: p.id,
-          name: p.name || '',
-          role: p.role || '',
-          email: p.email || '',
-          phone: p.phone || '',
-          organization: p.organization || '',
-          expertiseAreas: p.expertiseAreas?.join('; ') || '',
-          createdAt: p.createdAt?.toISOString() || '',
-        })));
+        csv = convertToCSV(people.map((p: any) => {
+          // Handle expertiseAreas - ensure it's properly converted to string
+          let expertiseAreasStr = '';
+          if (p.expertiseAreas) {
+            if (Array.isArray(p.expertiseAreas)) {
+              expertiseAreasStr = p.expertiseAreas
+                .filter((area: any) => typeof area === 'string')
+                .join('; ');
+            } else if (typeof p.expertiseAreas === 'object') {
+              // Convert object with numeric keys back to array
+              expertiseAreasStr = Object.values(p.expertiseAreas)
+                .filter((area: any) => typeof area === 'string')
+                .join('; ');
+            } else if (typeof p.expertiseAreas === 'string') {
+              expertiseAreasStr = p.expertiseAreas;
+            }
+          }
+          
+          return {
+            id: p.id,
+            name: p.name || '',
+            role: p.role || '',
+            email: p.email || '',
+            phone: p.phone || '',
+            organization: p.organization || '',
+            expertiseAreas: expertiseAreasStr,
+            createdAt: p.createdAt?.toISOString() || '',
+          };
+        }));
         filename = `people-${new Date().toISOString().split('T')[0]}.csv`;
         break;
 

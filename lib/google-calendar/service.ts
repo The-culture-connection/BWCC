@@ -181,6 +181,9 @@ export async function syncEventToGoogleCalendar(
       return end;
     })();
 
+    // Try to generate Google Meet link if virtualMeetingLink is not already set
+    const shouldCreateMeet = !event.virtualMeetingLink;
+    
     const calendarEvent: any = {
       summary: event.eventTitle,
       description: [
@@ -199,42 +202,85 @@ export async function syncEventToGoogleCalendar(
         dateTime: formatDateForGoogleCalendar(endDate),
         timeZone: 'America/New_York',
       },
-      // Note: Google Meet links may not be supported with service accounts for Gmail accounts
-      // If you need Meet links, you may need to use Google Workspace or add them manually
-      // conferenceData: {
-      //   createRequest: {
-      //     requestId: `meet-${event.id || Date.now()}-${Math.random().toString(36).substring(7)}`,
-      //     conferenceSolutionKey: {
-      //       type: 'hangoutsMeet',
-      //     },
-      //   },
-      // },
       // Note: Service accounts cannot include attendees with Gmail accounts (requires Google Workspace)
       // We must omit attendees - users who subscribe to the calendar will see the events
       // attendees: subscriberEmails.map(email => ({ email })), // Removed - not supported with Gmail
     };
 
+    // Add conferenceData for Google Meet link generation
+    if (shouldCreateMeet) {
+      calendarEvent.conferenceData = {
+        createRequest: {
+          requestId: `meet-${event.id || Date.now()}-${Math.random().toString(36).substring(7)}`,
+          conferenceSolutionKey: {
+            type: 'hangoutsMeet',
+          },
+        },
+      };
+    }
+
     let eventId: string;
 
+    let meetLink: string | null = null;
+    
     if (isUpdate && event.googleCalendarEventId) {
       // Update existing event
       const response = await calendar.events.update({
         calendarId: CALENDAR_ID,
         eventId: event.googleCalendarEventId,
         requestBody: calendarEvent,
+        conferenceDataVersion: shouldCreateMeet ? 1 : undefined,
       });
       eventId = response.data.id || event.googleCalendarEventId;
+      
+      // Extract Google Meet link if available
+      if (response.data.conferenceData?.entryPoints) {
+        const videoEntry = response.data.conferenceData.entryPoints.find(
+          (ep: any) => ep.entryPointType === 'video'
+        );
+        meetLink = videoEntry?.uri || null;
+      }
     } else {
       // Create new event
       const response = await calendar.events.insert({
         calendarId: CALENDAR_ID,
         requestBody: calendarEvent,
+        conferenceDataVersion: shouldCreateMeet ? 1 : undefined,
       });
       eventId = response.data.id || '';
+      
+      // Extract Google Meet link if available
+      if (response.data.conferenceData?.entryPoints) {
+        const videoEntry = response.data.conferenceData.entryPoints.find(
+          (ep: any) => ep.entryPointType === 'video'
+        );
+        meetLink = videoEntry?.uri || null;
+      }
+      
       console.log(`✅ Event created successfully on Google Calendar`);
       console.log(`   Event ID: ${eventId}`);
       console.log(`   Calendar: ${CALENDAR_ID}`);
       console.log(`   Title: ${event.eventTitle}`);
+      if (meetLink) {
+        console.log(`   Google Meet Link: ${meetLink}`);
+      }
+    }
+    
+    // Update the event in Firestore with the Meet link if generated
+    if (meetLink && event.id) {
+      try {
+        const { adminDb } = await import('@/lib/firebase/admin');
+        const { Timestamp } = await import('firebase-admin/firestore');
+        if (adminDb) {
+          await adminDb.collection('events').doc(event.id).update({
+            virtualMeetingLink: meetLink,
+            updatedAt: Timestamp.fromDate(new Date()),
+          });
+          console.log(`✅ Updated event with Google Meet link: ${meetLink}`);
+        }
+      } catch (error) {
+        console.error('Error updating event with Meet link:', error);
+      }
     }
 
     return eventId;
@@ -312,6 +358,9 @@ export async function syncMeetingToGoogleCalendar(
       return end;
     })();
 
+    // Try to generate Google Meet link if virtualMeetingLink is not already set
+    const shouldCreateMeet = !meeting.virtualMeetingLink;
+    
     const calendarEvent: any = {
       summary: meeting.title,
       description: [
@@ -327,22 +376,25 @@ export async function syncMeetingToGoogleCalendar(
         dateTime: formatDateForGoogleCalendar(endDate),
         timeZone: 'America/New_York',
       },
-      // Note: Google Meet links may not be supported with service accounts for Gmail accounts
-      // If you need Meet links, you may need to use Google Workspace or add them manually
-      // conferenceData: {
-      //   createRequest: {
-      //     requestId: `meet-${meeting.id || Date.now()}-${Math.random().toString(36).substring(7)}`,
-      //     conferenceSolutionKey: {
-      //       type: 'hangoutsMeet',
-      //     },
-      //   },
-      // },
       // Note: Service accounts cannot include attendees with Gmail accounts (requires Google Workspace)
       // We must omit attendees - users who subscribe to the calendar will see the events
       // attendees: subscriberEmails.map(email => ({ email })), // Removed - not supported with Gmail
     };
 
+    // Add conferenceData for Google Meet link generation
+    if (shouldCreateMeet) {
+      calendarEvent.conferenceData = {
+        createRequest: {
+          requestId: `meet-${meeting.id || Date.now()}-${Math.random().toString(36).substring(7)}`,
+          conferenceSolutionKey: {
+            type: 'hangoutsMeet',
+          },
+        },
+      };
+    }
+
     let eventId: string;
+    let meetLink: string | null = null;
 
     if (isUpdate && meeting.googleCalendarEventId) {
       // Update existing meeting
@@ -350,16 +402,55 @@ export async function syncMeetingToGoogleCalendar(
         calendarId: CALENDAR_ID,
         eventId: meeting.googleCalendarEventId,
         requestBody: calendarEvent,
+        conferenceDataVersion: shouldCreateMeet ? 1 : undefined,
       });
       eventId = response.data.id || meeting.googleCalendarEventId;
+      
+      // Extract Google Meet link if available
+      if (response.data.conferenceData?.entryPoints) {
+        const videoEntry = response.data.conferenceData.entryPoints.find(
+          (ep: any) => ep.entryPointType === 'video'
+        );
+        meetLink = videoEntry?.uri || null;
+      }
     } else {
       // Create new meeting
       const response = await calendar.events.insert({
         calendarId: CALENDAR_ID,
         requestBody: calendarEvent,
+        conferenceDataVersion: shouldCreateMeet ? 1 : undefined,
       });
       eventId = response.data.id || '';
-      console.log(`Meeting created successfully on Google Calendar: ${eventId}`);
+      
+      // Extract Google Meet link if available
+      if (response.data.conferenceData?.entryPoints) {
+        const videoEntry = response.data.conferenceData.entryPoints.find(
+          (ep: any) => ep.entryPointType === 'video'
+        );
+        meetLink = videoEntry?.uri || null;
+      }
+      
+      console.log(`✅ Meeting created successfully on Google Calendar: ${eventId}`);
+      if (meetLink) {
+        console.log(`   Google Meet Link: ${meetLink}`);
+      }
+    }
+    
+    // Update the meeting in Firestore with the Meet link if generated
+    if (meetLink && meeting.id) {
+      try {
+        const { adminDb } = await import('@/lib/firebase/admin');
+        const { Timestamp } = await import('firebase-admin/firestore');
+        if (adminDb) {
+          await adminDb.collection('meetings').doc(meeting.id).update({
+            virtualMeetingLink: meetLink,
+            updatedAt: Timestamp.fromDate(new Date()),
+          });
+          console.log(`✅ Updated meeting with Google Meet link: ${meetLink}`);
+        }
+      } catch (error) {
+        console.error('Error updating meeting with Meet link:', error);
+      }
     }
 
     return eventId;

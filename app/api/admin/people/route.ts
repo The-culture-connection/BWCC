@@ -5,6 +5,23 @@ import { convertTimestamps, prepareForFirestore } from '@/lib/firebase/db';
 import { Person } from '@/lib/types/database';
 import { Timestamp } from 'firebase-admin/firestore';
 
+// Helper function to ensure expertiseAreas is always an array of strings
+function normalizeExpertiseAreas(expertiseAreas: any): string[] | undefined {
+  if (!expertiseAreas) return undefined;
+  
+  if (Array.isArray(expertiseAreas)) {
+    return expertiseAreas.filter((area: any) => typeof area === 'string' && area.length > 0);
+  } else if (typeof expertiseAreas === 'object') {
+    // Convert object with numeric keys back to array
+    const values = Object.values(expertiseAreas).filter((area: any) => typeof area === 'string' && area.length > 0);
+    return values.length > 0 ? values : undefined;
+  } else if (typeof expertiseAreas === 'string' && expertiseAreas.length > 0) {
+    return [expertiseAreas];
+  }
+  
+  return undefined;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -29,17 +46,27 @@ export async function GET(request: NextRequest) {
       const rawEventIds = Array.isArray(rawData?.relatedEventIds) ? rawData.relatedEventIds : [];
       const cleanEventIds = rawEventIds.filter((e: any) => typeof e === 'string');
       
+      // Normalize expertiseAreas
+      const normalizedExpertise = normalizeExpertiseAreas(rawData?.expertiseAreas);
+      
       const person = {
         ...converted,
         relatedEventIds: cleanEventIds,
+        expertiseAreas: normalizedExpertise,
       };
       
       // If we cleaned up corrupted data, update the document
-      if (cleanEventIds.length !== rawEventIds.length) {
-        await adminDb.collection('people').doc(id).update({
+      const needsUpdate = cleanEventIds.length !== rawEventIds.length || 
+                         (normalizedExpertise && JSON.stringify(normalizedExpertise) !== JSON.stringify(rawData?.expertiseAreas));
+      if (needsUpdate) {
+        const updates: any = {
           relatedEventIds: cleanEventIds,
           updatedAt: Timestamp.fromDate(new Date()),
-        });
+        };
+        if (normalizedExpertise) {
+          updates.expertiseAreas = normalizedExpertise;
+        }
+        await adminDb.collection('people').doc(id).update(updates);
       }
       
       return NextResponse.json({ person }, { status: 200 });
@@ -57,9 +84,11 @@ export async function GET(request: NextRequest) {
       const converted = convertTimestamps({ id: doc.id, ...rawData } as Person);
       const rawEventIds = Array.isArray(rawData?.relatedEventIds) ? rawData.relatedEventIds : [];
       const cleanEventIds = rawEventIds.filter((e: any) => typeof e === 'string');
+      const normalizedExpertise = normalizeExpertiseAreas(rawData?.expertiseAreas);
       return {
         ...converted,
         relatedEventIds: cleanEventIds,
+        expertiseAreas: normalizedExpertise,
       };
     });
 
@@ -193,19 +222,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Normalize expertiseAreas before saving
+    const normalizedExpertise = normalizeExpertiseAreas(body.expertiseAreas);
+    
+    // Ensure relatedEventIds is an array of strings
+    const relatedEventIds = Array.isArray(body.relatedEventIds) 
+      ? body.relatedEventIds.filter((id: any) => typeof id === 'string')
+      : undefined;
+    
     const newPerson: Omit<Person, 'id' | 'createdAt' | 'updatedAt'> = {
       name: body.name,
       role: body.role,
+      status: body.status || 'Approved', // Default to Approved for admin-created people
       email: body.email,
       phone: body.phone,
       organization: body.organization,
-      expertiseAreas: body.expertiseAreas,
+      expertiseAreas: normalizedExpertise,
       bio: body.bio,
       headshot: body.headshot,
       availabilityNotes: body.availabilityNotes,
+      relatedEventIds: relatedEventIds,
     };
 
     const personId = await createPerson(newPerson);
+
+    // Link person to events bidirectionally
+    if (relatedEventIds && relatedEventIds.length > 0) {
+      for (const eventId of relatedEventIds) {
+        try {
+          const eventRef = adminDb.collection('events').doc(eventId);
+          const eventDoc = await eventRef.get();
+          if (eventDoc.exists) {
+            const eventData = eventDoc.data();
+            const relatedPersonIds = Array.isArray(eventData?.relatedPersonIds) ? eventData.relatedPersonIds : [];
+            if (!relatedPersonIds.includes(personId)) {
+              relatedPersonIds.push(personId);
+              await eventRef.update({
+                relatedPersonIds,
+                updatedAt: Timestamp.fromDate(new Date()),
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Error linking person ${personId} to event ${eventId}:`, error);
+        }
+      }
+    }
 
     return NextResponse.json({ success: true, id: personId }, { status: 201 });
   } catch (error: any) {

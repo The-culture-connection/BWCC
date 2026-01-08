@@ -180,6 +180,7 @@ export interface Suggestion {
   id?: string;
   description: string;
   category?: string;
+  page?: string; // Page where suggestion was submitted
   status?: 'New' | 'In Review' | 'Approved' | 'Rejected';
   createdBy?: string; // User ID
   createdAt: Date;

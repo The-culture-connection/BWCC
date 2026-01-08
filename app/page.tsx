@@ -7,6 +7,7 @@ import Partners from '@/components/Partners';
 import Donate from '@/components/Donate';
 import MeetFounder from '@/components/MeetFounder';
 import AnnualSummit from '@/components/AnnualSummit';
+import SuggestionButton from '@/components/SuggestionButton';
 
 export default function Home() {
   return (
@@ -20,6 +21,7 @@ export default function Home() {
       <Partners />
       <AnnualSummit />
       <Donate />
+      <SuggestionButton />
     </div>
   );
 }

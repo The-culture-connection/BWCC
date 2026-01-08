@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function SuggestionButton() {
+  const pathname = usePathname();
   const [showModal, setShowModal] = useState(false);
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -19,7 +21,11 @@ export default function SuggestionButton() {
       const response = await fetch('/api/admin/suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: description.trim(), category: category.trim() || undefined }),
+        body: JSON.stringify({ 
+          description: description.trim(), 
+          category: category.trim() || undefined,
+          page: pathname || undefined,
+        }),
       });
 
       if (response.ok) {

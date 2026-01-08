@@ -1,13 +1,15 @@
 'use client';
 
 import AdminLayout from '@/components/AdminLayout';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { PeopleRole } from '@/lib/types/database';
 
 export default function NewPersonPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [events, setEvents] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     role: 'Contact' as PeopleRole,
@@ -18,7 +20,25 @@ export default function NewPersonPage() {
     bio: '',
     headshot: '',
     availabilityNotes: '',
+    relatedEventIds: [] as string[],
   });
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
+  const loadEvents = async () => {
+    setLoadingEvents(true);
+    try {
+      const response = await fetch('/api/admin/events/select');
+      const data = await response.json();
+      setEvents(data.events || []);
+    } catch (error) {
+      console.error('Error loading events:', error);
+    } finally {
+      setLoadingEvents(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -26,6 +46,18 @@ export default function NewPersonPage() {
       ...prev,
       [name]: value,
     }));
+  };
+
+  const handleEventSelection = (eventId: string) => {
+    setFormData(prev => {
+      const isSelected = prev.relatedEventIds.includes(eventId);
+      return {
+        ...prev,
+        relatedEventIds: isSelected 
+          ? prev.relatedEventIds.filter(id => id !== eventId)
+          : [...prev.relatedEventIds, eventId],
+      };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,6 +70,8 @@ export default function NewPersonPage() {
         expertiseAreas: formData.expertiseAreas
           ? formData.expertiseAreas.split(',').map(s => s.trim()).filter(Boolean)
           : undefined,
+        relatedEventIds: formData.relatedEventIds.length > 0 ? formData.relatedEventIds : undefined,
+        status: 'Approved', // Admin-created people are automatically approved
       };
 
       const response = await fetch('/api/admin/people', {
@@ -203,6 +237,43 @@ export default function NewPersonPage() {
               rows={3}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg"
             />
+          </div>
+
+          {/* Event Assignment Section */}
+          <div className="border-t pt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Assign to Events (optional)
+            </label>
+            {loadingEvents ? (
+              <p className="text-sm text-gray-500">Loading events...</p>
+            ) : events.length === 0 ? (
+              <p className="text-sm text-gray-500">No events available</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                {events.map((event) => {
+                  const eventDate = event.date ? new Date(event.date).toLocaleDateString() : 'TBD';
+                  const eventTime = event.startTime ? new Date(event.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                  const displayText = `${event.title} - ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`;
+                  
+                  return (
+                    <label key={event.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.relatedEventIds.includes(event.id)}
+                        onChange={() => handleEventSelection(event.id)}
+                        className="text-brand-gold focus:ring-brand-gold"
+                      />
+                      <span className="text-sm text-gray-700">{displayText}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            {formData.relatedEventIds.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                {formData.relatedEventIds.length} event(s) selected
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end space-x-4 pt-6">

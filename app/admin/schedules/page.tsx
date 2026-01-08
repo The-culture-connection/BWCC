@@ -1,6 +1,7 @@
 'use client';
 
 import AdminLayout from '@/components/AdminLayout';
+import SuggestionButton from '@/components/SuggestionButton';
 import { useEffect, useState } from 'react';
 import { Schedule, Event } from '@/lib/types/database';
 import { getCurrentUser } from '@/lib/firebase/auth';
@@ -682,6 +683,7 @@ export default function SchedulesPage() {
           </div>
         )}
       </div>
+      <SuggestionButton />
     </AdminLayout>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import AdminLayout from '@/components/AdminLayout';
+import SuggestionButton from '@/components/SuggestionButton';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
@@ -89,6 +90,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+      <SuggestionButton />
     </AdminLayout>
   );
 }

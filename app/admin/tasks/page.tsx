@@ -1,6 +1,7 @@
 'use client';
 
 import AdminLayout from '@/components/AdminLayout';
+import SuggestionButton from '@/components/SuggestionButton';
 import { useEffect, useState } from 'react';
 import { Task } from '@/lib/types/database';
 import { getCurrentUser } from '@/lib/firebase/auth';
@@ -732,6 +733,7 @@ export default function TasksPage() {
           </div>
         )}
       </div>
+      <SuggestionButton />
     </AdminLayout>
   );
 }

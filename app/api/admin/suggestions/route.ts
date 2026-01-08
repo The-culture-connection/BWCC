@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     if (!adminDb) throw new Error('Firebase Admin not initialized');
 
     const body = await request.json();
-    const { description, category } = body;
+    const { description, category, page } = body;
 
     if (!description || !description.trim()) {
       return NextResponse.json(
@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
     const suggestion: Omit<Suggestion, 'id' | 'createdAt' | 'updatedAt'> = {
       description: description.trim(),
       category: category || undefined,
+      page: page || undefined,
       status: 'New',
     };
 

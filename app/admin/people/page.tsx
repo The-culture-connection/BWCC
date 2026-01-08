@@ -164,20 +164,34 @@ export default function PeoplePage() {
                   </div>
                 )}
 
-                {selectedPerson.expertiseAreas && Array.isArray(selectedPerson.expertiseAreas) && selectedPerson.expertiseAreas.length > 0 && (
-                  <div>
-                    <h3 className="font-semibold text-gray-700 mb-2">Expertise Areas</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedPerson.expertiseAreas.map((area, idx) => {
-                        const areaStr = typeof area === 'string' ? area : String(area);
-                        return (
-                          <span key={idx} className="px-2 py-1 bg-brand-cream text-brand-black rounded text-sm">
-                            {areaStr}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
+                {selectedPerson.expertiseAreas && (
+                  (() => {
+                    // Handle expertiseAreas - convert to array if it's an object with numeric keys
+                    let areasArray: string[] = [];
+                    if (Array.isArray(selectedPerson.expertiseAreas)) {
+                      areasArray = selectedPerson.expertiseAreas.filter(area => typeof area === 'string');
+                    } else if (typeof selectedPerson.expertiseAreas === 'object') {
+                      // Convert object with numeric keys back to array of strings
+                      areasArray = Object.values(selectedPerson.expertiseAreas).filter(area => typeof area === 'string');
+                    } else if (typeof selectedPerson.expertiseAreas === 'string') {
+                      areasArray = [selectedPerson.expertiseAreas];
+                    }
+                    
+                    if (areasArray.length === 0) return null;
+                    
+                    return (
+                      <div>
+                        <h3 className="font-semibold text-gray-700 mb-2">Expertise Areas</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {areasArray.map((area, idx) => (
+                            <span key={idx} className="px-2 py-1 bg-brand-cream text-brand-black rounded text-sm">
+                              {area}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()
                 )}
 
                 {/* Actions Section */}

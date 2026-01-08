@@ -1,6 +1,7 @@
 'use client';
 
 import AdminLayout from '@/components/AdminLayout';
+import SuggestionButton from '@/components/SuggestionButton';
 import { useState, useEffect } from 'react';
 import { getCurrentUser, changePassword } from '@/lib/firebase/auth';
 import { Committee } from '@/lib/types/database';
@@ -641,6 +642,7 @@ export default function AdminManagePage() {
           </div>
         )}
       </div>
+      <SuggestionButton />
     </AdminLayout>
   );
 }
