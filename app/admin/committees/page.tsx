@@ -447,12 +447,42 @@ export default function CommitteesPage() {
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <h3 className="font-semibold text-gray-700">Meetings</h3>
-                    <button
-                      onClick={() => setShowCreateMeeting(true)}
-                      className="text-sm px-3 py-1 bg-brand-gold text-brand-black rounded hover:bg-brand-tan"
-                    >
-                      + Create Meeting
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowCreateMeeting(true)}
+                        className="text-sm px-3 py-1 bg-brand-gold text-brand-black rounded hover:bg-brand-tan"
+                      >
+                        + Create Meeting
+                      </button>
+                      {committeeMeetings.length > 0 && (
+                        <button
+                          onClick={async () => {
+                            // Track in MVP 2 bucket
+                            try {
+                              await fetch('/api/admin/mvp2', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ 
+                                  personId: selectedCommittee.id,
+                                  action: 'transcribe_summarize_meeting',
+                                  metadata: {
+                                    committeeId: selectedCommittee.id,
+                                    committeeName: selectedCommittee.name,
+                                  }
+                                }),
+                              });
+                              alert('Transcribe/Summarize meeting notes action recorded. (Functionality to be implemented)');
+                            } catch (error) {
+                              console.error('Error recording action:', error);
+                              alert('Error recording action');
+                            }
+                          }}
+                          className="text-sm px-3 py-1 bg-brand-gold text-brand-black rounded hover:bg-brand-tan"
+                        >
+                          📝 Transcribe / Summarize Meeting Notes
+                        </button>
+                      )}
+                    </div>
                   </div>
                   
                   {showCreateMeeting && (

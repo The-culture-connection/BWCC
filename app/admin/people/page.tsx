@@ -164,6 +164,7 @@ export default function PeoplePage() {
                   </div>
                 )}
 
+
                 {selectedPerson.expertiseAreas && (
                   (() => {
                     // Handle expertiseAreas - convert to array if it's an object with numeric keys
@@ -192,6 +193,7 @@ export default function PeoplePage() {
                       </div>
                     );
                   })()
+                )}
                 )}
 
                 {/* Actions Section */}
@@ -309,6 +311,22 @@ export default function PeoplePage() {
                         <button
                           onClick={async () => {
                             try {
+                              // Track in MVP 2 bucket
+                              const mvp2Response = await fetch('/api/admin/mvp2', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ 
+                                  personId: selectedPerson.id,
+                                  action: 'send_confirmation_email',
+                                  metadata: {
+                                    email: selectedPerson.email,
+                                    name: selectedPerson.name,
+                                  }
+                                }),
+                              });
+                              
+                              const mvp2Data = await mvp2Response.json();
+                              
                               await fetch('/api/admin/people', {
                                 method: 'PATCH',
                                 headers: { 'Content-Type': 'application/json' },
@@ -320,7 +338,7 @@ export default function PeoplePage() {
                               const response = await fetch(`/api/admin/people?id=${selectedPerson.id}`);
                               const data = await response.json();
                               setSelectedPerson(data.person);
-                              alert('Confirmation email/event invite sent. (Email functionality to be implemented)');
+                              alert(`Confirmation email/event invite sent. (Email functionality to be implemented) - Tracked as action #${mvp2Data.index}`);
                             } catch (error) {
                               console.error('Error sending confirmation email:', error);
                               alert('Error sending confirmation email');

@@ -297,4 +297,3 @@ export default function NewPersonPage() {
     </AdminLayout>
   );
 }
-

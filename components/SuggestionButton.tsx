@@ -102,7 +102,11 @@ export default function SuggestionButton() {
                   {submitting ? 'Submitting...' : 'Submit'}
                 </button>
                 <button
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setDescription('');
+                    setCategory('');
+                  }}
                   className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                 >
                   Cancel
@@ -115,4 +119,3 @@ export default function SuggestionButton() {
     </>
   );
 }
-

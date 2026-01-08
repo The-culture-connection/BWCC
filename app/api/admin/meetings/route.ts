@@ -153,12 +153,15 @@ export async function POST(request: NextRequest) {
         updatedAt: now,
       } as Meeting);
       
+      const { getGoogleMeetLink } = await import('@/lib/google-calendar/service');
       const googleCalendarEventId = await syncMeetingToGoogleCalendar(meetingWithId, false);
       
-      // Update meeting with Google Calendar event ID if sync was successful
+      // Update meeting with Google Calendar event ID and Meet link if sync was successful
       if (googleCalendarEventId && adminDb) {
+        const meetLink = await getGoogleMeetLink(googleCalendarEventId);
         await adminDb.collection('meetings').doc(meetingId).update({
           googleCalendarEventId,
+          ...(meetLink && { virtualMeetingLink: meetLink }),
           updatedAt: Timestamp.fromDate(new Date()),
         });
       }

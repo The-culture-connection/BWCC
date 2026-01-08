@@ -143,12 +143,16 @@ export async function POST(request: NextRequest) {
     if (createdEvent) {
       // Sync to Google Calendar if it's a private approved event
       try {
-        const { syncEventToGoogleCalendar } = await import('@/lib/google-calendar/service');
+        const { syncEventToGoogleCalendar, getGoogleMeetLink } = await import('@/lib/google-calendar/service');
         const googleCalendarEventId = await syncEventToGoogleCalendar(createdEvent, false);
         
-        // Update event with Google Calendar event ID if sync was successful
+        // Update event with Google Calendar event ID and Meet link if sync was successful
         if (googleCalendarEventId) {
-          await updateEvent(eventId, { googleCalendarEventId });
+          const meetLink = await getGoogleMeetLink(googleCalendarEventId);
+          await updateEvent(eventId, { 
+            googleCalendarEventId,
+            ...(meetLink && { virtualMeetingLink: meetLink })
+          });
         }
       } catch (error) {
         console.error('Error syncing event to Google Calendar:', error);

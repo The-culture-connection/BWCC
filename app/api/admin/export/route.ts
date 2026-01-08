@@ -103,10 +103,6 @@ export async function GET(request: NextRequest) {
             updatedAt: v.updatedAt?.toISOString() || '',
           };
         }));
-        filename = `volunteers-${new Date().toISOString().split('T')[0]}.csv`;
-        break;
-
-      case 'requests':
         if (!adminDb) throw new Error('Firebase Admin not initialized');
         const requestsSnapshot = await adminDb.collection('requests')
           .orderBy('createdAt', 'desc')
@@ -185,6 +181,27 @@ export async function GET(request: NextRequest) {
             createdAt: p.createdAt?.toISOString() || '',
           };
         }));
+        csv = convertToCSV(people.map((p: any) => ({
+          id: p.id,
+          name: p.name || '',
+          role: p.role || '',
+          email: p.email || '',
+          phone: p.phone || '',
+          organization: p.organization || '',
+          expertiseAreas: Array.isArray(p.expertiseAreas) 
+            ? p.expertiseAreas
+                .map((area: any) => {
+                  if (typeof area === 'string') return area;
+                  if (typeof area === 'object' && area !== null) {
+                    return (area as any).value || (area as any).label || (area as any).name || JSON.stringify(area);
+                  }
+                  return String(area);
+                })
+                .join('; ')
+            : '',
+          createdAt: p.createdAt?.toISOString() || '',
+        })));
+>>>>>>> origin/main
         filename = `people-${new Date().toISOString().split('T')[0]}.csv`;
         break;
 
