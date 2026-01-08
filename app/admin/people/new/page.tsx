@@ -1,13 +1,15 @@
 'use client';
 
 import AdminLayout from '@/components/AdminLayout';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { PeopleRole } from '@/lib/types/database';
 
 export default function NewPersonPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [events, setEvents] = useState<any[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     role: 'Contact' as PeopleRole,
@@ -18,7 +20,24 @@ export default function NewPersonPage() {
     bio: '',
     headshot: '',
     availabilityNotes: '',
+    assignedEventId: '',
   });
+
+  useEffect(() => {
+    // Load events for event assignment
+    setLoadingEvents(true);
+    fetch('/api/admin/events/select')
+      .then(res => res.json())
+      .then(data => {
+        setEvents(data.events || []);
+      })
+      .catch(err => {
+        console.error('Error loading events:', err);
+      })
+      .finally(() => {
+        setLoadingEvents(false);
+      });
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -38,6 +57,8 @@ export default function NewPersonPage() {
         expertiseAreas: formData.expertiseAreas
           ? formData.expertiseAreas.split(',').map(s => s.trim()).filter(Boolean)
           : undefined,
+        assignedEventId: formData.assignedEventId || undefined,
+        relatedEventIds: formData.assignedEventId ? [formData.assignedEventId] : undefined,
       };
 
       const response = await fetch('/api/admin/people', {
@@ -203,6 +224,31 @@ export default function NewPersonPage() {
               rows={3}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Assign Event (optional)
+            </label>
+            <select
+              name="assignedEventId"
+              value={formData.assignedEventId}
+              onChange={handleChange}
+              disabled={loadingEvents}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            >
+              <option value="">Select an event (optional)</option>
+              {events.map((event) => {
+                const eventDate = event.date ? new Date(event.date).toLocaleDateString() : 'TBD';
+                const eventTime = event.startTime ? new Date(event.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                const displayText = `${event.title} - ${eventDate}${eventTime ? ` at ${eventTime}` : ''}${event.location ? ` (${event.location})` : ''}`;
+                return (
+                  <option key={event.id} value={event.id}>
+                    {displayText}
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
           <div className="flex justify-end space-x-4 pt-6">

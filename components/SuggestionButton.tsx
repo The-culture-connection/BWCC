@@ -2,15 +2,20 @@
 
 import { useState } from 'react';
 
-export default function SuggestionButton() {
+interface SuggestionButtonProps {
+  page: string;
+  className?: string;
+}
+
+export default function SuggestionButton({ page, className = '' }: SuggestionButtonProps) {
   const [showModal, setShowModal] = useState(false);
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('');
+  const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!description.trim()) {
-      alert('Please enter a description');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!comment.trim()) {
+      alert('Please enter a suggestion');
       return;
     }
 
@@ -19,13 +24,12 @@ export default function SuggestionButton() {
       const response = await fetch('/api/admin/suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: description.trim(), category: category.trim() || undefined }),
+        body: JSON.stringify({ comment, page }),
       });
 
       if (response.ok) {
         alert('Thank you for your suggestion!');
-        setDescription('');
-        setCategory('');
+        setComment('');
         setShowModal(false);
       } else {
         const data = await response.json();
@@ -43,70 +47,64 @@ export default function SuggestionButton() {
     <>
       <button
         onClick={() => setShowModal(true)}
-        className="fixed bottom-6 right-6 bg-brand-gold text-brand-black px-4 py-2 rounded-full shadow-lg hover:bg-brand-tan font-medium z-50"
+        className={`px-4 py-2 bg-brand-gold text-brand-black rounded-lg hover:bg-brand-tan text-sm font-medium ${className}`}
       >
-        💡 Suggestion
+        💡 Make a Suggestion
       </button>
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-brand-black">Submit Suggestion</h2>
+              <h3 className="text-xl font-bold text-brand-black">Make a Suggestion</h3>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false);
+                  setComment('');
+                }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 ✕
               </button>
             </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description *
+            <form onSubmit={handleSubmit}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Your Suggestion
                 </label>
                 <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
                   rows={4}
-                  placeholder="Describe the feature or functionality you'd like to suggest..."
                   required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  placeholder="Share your ideas, feedback, or suggestions..."
                 />
+                <p className="text-xs text-gray-500 mt-1">Page: {page}</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Category (optional)
-                </label>
-                <input
-                  type="text"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                  placeholder="e.g. UI, Feature, Bug Fix"
-                />
-              </div>
-              <div className="flex gap-4">
+              <div className="flex justify-end space-x-2">
                 <button
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="flex-1 px-4 py-2 bg-brand-gold text-brand-black rounded-lg hover:bg-brand-tan font-medium disabled:opacity-50"
-                >
-                  {submitting ? 'Submitting...' : 'Submit'}
-                </button>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    setComment('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   Cancel
                 </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-brand-gold text-brand-black rounded-lg hover:bg-brand-tan font-medium disabled:opacity-50"
+                >
+                  {submitting ? 'Submitting...' : 'Submit'}
+                </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}
     </>
   );
 }
-

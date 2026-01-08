@@ -459,7 +459,16 @@ export function buildPerson(
         const types = Array.isArray(formData.supportTypes) 
           ? formData.supportTypes 
           : [formData.supportTypes];
-        expertiseAreas.push(...types);
+        // Ensure all items are strings, not objects
+        const stringTypes = types.map((t: any) => {
+          if (typeof t === 'string') return t;
+          if (typeof t === 'object' && t !== null) {
+            // If it's an object, try to extract a value property or stringify
+            return t.value || t.label || t.name || JSON.stringify(t);
+          }
+          return String(t);
+        }).filter((t: string) => t && t.length > 0);
+        expertiseAreas.push(...stringTypes);
       }
       break;
   }

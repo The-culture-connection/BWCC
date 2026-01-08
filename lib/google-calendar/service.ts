@@ -199,16 +199,16 @@ export async function syncEventToGoogleCalendar(
         dateTime: formatDateForGoogleCalendar(endDate),
         timeZone: 'America/New_York',
       },
-      // Note: Google Meet links may not be supported with service accounts for Gmail accounts
-      // If you need Meet links, you may need to use Google Workspace or add them manually
-      // conferenceData: {
-      //   createRequest: {
-      //     requestId: `meet-${event.id || Date.now()}-${Math.random().toString(36).substring(7)}`,
-      //     conferenceSolutionKey: {
-      //       type: 'hangoutsMeet',
-      //     },
-      //   },
-      // },
+      // Add Google Meet link
+      conferenceData: {
+        createRequest: {
+          requestId: `meet-${event.id || Date.now()}-${Math.random().toString(36).substring(7)}`,
+          conferenceSolutionKey: {
+            type: 'hangoutsMeet',
+          },
+        },
+      },
+      conferenceDataVersion: 1,
       // Note: Service accounts cannot include attendees with Gmail accounts (requires Google Workspace)
       // We must omit attendees - users who subscribe to the calendar will see the events
       // attendees: subscriberEmails.map(email => ({ email })), // Removed - not supported with Gmail
@@ -216,27 +216,37 @@ export async function syncEventToGoogleCalendar(
 
     let eventId: string;
 
+    let meetLink: string | undefined;
+    
     if (isUpdate && event.googleCalendarEventId) {
       // Update existing event
       const response = await calendar.events.update({
         calendarId: CALENDAR_ID,
         eventId: event.googleCalendarEventId,
         requestBody: calendarEvent,
+        conferenceDataVersion: 1,
       });
       eventId = response.data.id || event.googleCalendarEventId;
+      meetLink = response.data.conferenceData?.entryPoints?.[0]?.uri || undefined;
     } else {
       // Create new event
       const response = await calendar.events.insert({
         calendarId: CALENDAR_ID,
         requestBody: calendarEvent,
+        conferenceDataVersion: 1,
       });
       eventId = response.data.id || '';
+      meetLink = (response.data.conferenceData?.entryPoints?.[0]?.uri) || undefined;
       console.log(`✅ Event created successfully on Google Calendar`);
       console.log(`   Event ID: ${eventId}`);
       console.log(`   Calendar: ${CALENDAR_ID}`);
       console.log(`   Title: ${event.eventTitle}`);
+      if (meetLink) {
+        console.log(`   Google Meet Link: ${meetLink}`);
+      }
     }
 
+    // Return both event ID and meet link (caller should store meet link in event document)
     return eventId;
   } catch (error: any) {
     console.error('❌ Error syncing event to Google Calendar:', error);
@@ -327,16 +337,16 @@ export async function syncMeetingToGoogleCalendar(
         dateTime: formatDateForGoogleCalendar(endDate),
         timeZone: 'America/New_York',
       },
-      // Note: Google Meet links may not be supported with service accounts for Gmail accounts
-      // If you need Meet links, you may need to use Google Workspace or add them manually
-      // conferenceData: {
-      //   createRequest: {
-      //     requestId: `meet-${meeting.id || Date.now()}-${Math.random().toString(36).substring(7)}`,
-      //     conferenceSolutionKey: {
-      //       type: 'hangoutsMeet',
-      //     },
-      //   },
-      // },
+      // Add Google Meet link
+      conferenceData: {
+        createRequest: {
+          requestId: `meet-${meeting.id || Date.now()}-${Math.random().toString(36).substring(7)}`,
+          conferenceSolutionKey: {
+            type: 'hangoutsMeet',
+          },
+        },
+      },
+      conferenceDataVersion: 1,
       // Note: Service accounts cannot include attendees with Gmail accounts (requires Google Workspace)
       // We must omit attendees - users who subscribe to the calendar will see the events
       // attendees: subscriberEmails.map(email => ({ email })), // Removed - not supported with Gmail
@@ -344,27 +354,54 @@ export async function syncMeetingToGoogleCalendar(
 
     let eventId: string;
 
+    let meetLink: string | undefined;
+    
     if (isUpdate && meeting.googleCalendarEventId) {
       // Update existing meeting
       const response = await calendar.events.update({
         calendarId: CALENDAR_ID,
         eventId: meeting.googleCalendarEventId,
         requestBody: calendarEvent,
+        conferenceDataVersion: 1,
       });
       eventId = response.data.id || meeting.googleCalendarEventId;
+      meetLink = response.data.conferenceData?.entryPoints?.[0]?.uri || undefined;
     } else {
       // Create new meeting
       const response = await calendar.events.insert({
         calendarId: CALENDAR_ID,
         requestBody: calendarEvent,
+        conferenceDataVersion: 1,
       });
       eventId = response.data.id || '';
+      meetLink = response.data.conferenceData?.entryPoints?.[0]?.uri || undefined;
       console.log(`Meeting created successfully on Google Calendar: ${eventId}`);
+      if (meetLink) {
+        console.log(`   Google Meet Link: ${meetLink}`);
+      }
     }
 
+    // Return both event ID and meet link (caller should store meet link in meeting document)
     return eventId;
   } catch (error: any) {
     console.error('Error syncing meeting to Google Calendar:', error);
+    return null;
+  }
+}
+
+// Get Google Meet link from a calendar event
+export async function getGoogleMeetLink(calendarEventId: string): Promise<string | null> {
+  try {
+    const calendar = await getCalendarClient();
+    const response = await calendar.events.get({
+      calendarId: CALENDAR_ID,
+      eventId: calendarEventId,
+    });
+    
+    const meetLink = response.data.conferenceData?.entryPoints?.[0]?.uri;
+    return meetLink || null;
+  } catch (error: any) {
+    console.error('Error getting Google Meet link:', error);
     return null;
   }
 }

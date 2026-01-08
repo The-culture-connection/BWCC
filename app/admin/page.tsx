@@ -1,6 +1,7 @@
 'use client';
 
 import AdminLayout from '@/components/AdminLayout';
+import SuggestionButton from '@/components/SuggestionButton';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
@@ -37,7 +38,10 @@ export default function AdminDashboard() {
   return (
     <AdminLayout>
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-brand-black mb-8">Dashboard</h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-brand-black">Dashboard</h1>
+          <SuggestionButton page="Dashboard" />
+        </div>
 
         {loading ? (
           <div className="text-center py-8">Loading...</div>

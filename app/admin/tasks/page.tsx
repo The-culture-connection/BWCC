@@ -2,7 +2,7 @@
 
 import AdminLayout from '@/components/AdminLayout';
 import { useEffect, useState } from 'react';
-import { Task } from '@/lib/types/database';
+import { Task, Committee } from '@/lib/types/database';
 import { getCurrentUser } from '@/lib/firebase/auth';
 
 interface User {
@@ -417,17 +417,14 @@ function TaskDetailModal({ task, users, committees, onClose, onUpdate }: TaskDet
   );
 }
 
-interface Committee {
-  id?: string;
-  name: string;
-  description?: string;
-}
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [userCommittees, setUserCommittees] = useState<string[]>([]);
   const [filter, setFilter] = useState<{ status?: string }>({});
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -442,11 +439,25 @@ export default function TasksPage() {
   });
 
   useEffect(() => {
+    const user = getCurrentUser();
+    if (user) {
+      setCurrentUserId(user.uid);
+    }
     loadTasks();
     loadUsers();
     loadCommittees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
+
+  useEffect(() => {
+    // Load user's committees
+    if (currentUserId && committees.length > 0) {
+      const userCommIds = committees
+        .filter(c => Array.isArray(c.members) && c.members.includes(currentUserId))
+        .map(c => c.id!);
+      setUserCommittees(userCommIds);
+    }
+  }, [currentUserId, committees]);
 
   const loadUsers = async () => {
     try {
@@ -556,20 +567,107 @@ export default function TasksPage() {
         {loading ? (
           <div className="text-center py-8">Loading...</div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {tasks.map((task) => {
+          <>
+            {/* Your Tasks Section */}
+            {currentUserId && (() => {
+              const yourTasks = tasks.filter(task => 
+                task.assignedTo === currentUserId || 
+                (task.assignedToCommittee && userCommittees.includes(task.assignedToCommittee))
+              );
+              
+              if (yourTasks.length > 0) {
+                return (
+                  <div className="mb-8">
+                    <h2 className="text-2xl font-bold text-brand-black mb-4">Your Tasks</h2>
+                    <div className="bg-white rounded-lg shadow overflow-hidden">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {yourTasks.map((task) => {
+                            const assignedUser = users.find(u => u.uid === task.assignedTo);
+                            const assignedCommittee = committees.find(c => c.id === task.assignedToCommittee);
+                            return (
+                              <tr key={task.id} className="hover:bg-gray-50">
+                                <td className="px-6 py-4">
+                                  <button
+                                    onClick={() => setSelectedTask(task)}
+                                    className="text-left text-sm font-medium text-brand-black hover:text-brand-gold"
+                                  >
+                                    {task.title}
+                                  </button>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`px-2 py-1 text-xs rounded-full ${
+                                    task.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                                    task.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
+                                    task.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {task.status}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`px-2 py-1 text-xs rounded ${
+                                    task.priority === 'Urgent' ? 'bg-red-100 text-red-800' :
+                                    task.priority === 'High' ? 'bg-orange-100 text-orange-800' :
+                                    task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {task.priority}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '-'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                  {assignedUser ? assignedUser.email : assignedCommittee ? assignedCommittee.name : '-'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                  <button
+                                    onClick={() => setSelectedTask(task)}
+                                    className="text-brand-gold hover:text-brand-brown"
+                                  >
+                                    View
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* All Tasks Section */}
+            <div>
+              <h2 className="text-2xl font-bold text-brand-black mb-4">All Tasks</h2>
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {tasks.map((task) => {
                   const assignedUser = users.find(u => u.uid === task.assignedTo);
                   const assignedCommittee = committees.find(c => c.id === task.assignedToCommittee);
                   return (
@@ -622,6 +720,8 @@ export default function TasksPage() {
               </tbody>
             </table>
           </div>
+            </div>
+          </>
         )}
 
         {/* Task Detail Modal */}

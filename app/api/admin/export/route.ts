@@ -76,7 +76,17 @@ export async function GET(request: NextRequest) {
           role: v.role || '',
           status: v.status || '',
           organization: v.organization || '',
-          expertiseAreas: Array.isArray(v.expertiseAreas) ? v.expertiseAreas.join('; ') : '',
+          expertiseAreas: Array.isArray(v.expertiseAreas) 
+            ? v.expertiseAreas
+                .map((area: any) => {
+                  if (typeof area === 'string') return area;
+                  if (typeof area === 'object' && area !== null) {
+                    return (area as any).value || (area as any).label || (area as any).name || JSON.stringify(area);
+                  }
+                  return String(area);
+                })
+                .join('; ')
+            : '',
           assignedEventId: v.assignedEventId || '',
           relatedEventIds: Array.isArray(v.relatedEventIds) ? v.relatedEventIds.join('; ') : '',
           relatedTaskIds: Array.isArray(v.relatedTaskIds) ? v.relatedTaskIds.join('; ') : '',
@@ -144,7 +154,17 @@ export async function GET(request: NextRequest) {
           email: p.email || '',
           phone: p.phone || '',
           organization: p.organization || '',
-          expertiseAreas: p.expertiseAreas?.join('; ') || '',
+          expertiseAreas: Array.isArray(p.expertiseAreas) 
+            ? p.expertiseAreas
+                .map((area: any) => {
+                  if (typeof area === 'string') return area;
+                  if (typeof area === 'object' && area !== null) {
+                    return (area as any).value || (area as any).label || (area as any).name || JSON.stringify(area);
+                  }
+                  return String(area);
+                })
+                .join('; ')
+            : '',
           createdAt: p.createdAt?.toISOString() || '',
         })));
         filename = `people-${new Date().toISOString().split('T')[0]}.csv`;
