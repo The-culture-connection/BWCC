@@ -195,7 +195,6 @@ export default function PeoplePage() {
                     );
                   })()
                 )}
-                )}
 
                 {/* Actions Section */}
                 {(selectedPerson.role === 'Panelist' || selectedPerson.role === 'Volunteer' || selectedPerson.role === 'Podcast Guest') && (
