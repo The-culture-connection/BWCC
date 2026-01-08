@@ -38,10 +38,7 @@ export default function AdminDashboard() {
   return (
     <AdminLayout>
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-brand-black">Dashboard</h1>
-          <SuggestionButton page="Dashboard" />
-        </div>
+        <h1 className="text-3xl font-bold text-brand-black mb-8">Dashboard</h1>
 
         {loading ? (
           <div className="text-center py-8">Loading...</div>
