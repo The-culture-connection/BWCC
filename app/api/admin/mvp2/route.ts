@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase/admin';
 import { Timestamp } from 'firebase-admin/firestore';
 
+// MVP2 tracking API - records future feature requests and actions
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
