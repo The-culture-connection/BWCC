@@ -13,7 +13,7 @@ function normalizeExpertiseAreas(expertiseAreas: any): string[] | undefined {
     return expertiseAreas.filter((area: any) => typeof area === 'string' && area.length > 0);
   } else if (typeof expertiseAreas === 'object') {
     // Convert object with numeric keys back to array
-    const values = Object.values(expertiseAreas).filter((area: any) => typeof area === 'string' && area.length > 0);
+    const values = Object.values(expertiseAreas).filter((area: any) => typeof area === 'string' && area.length > 0) as string[];
     return values.length > 0 ? values : undefined;
   } else if (typeof expertiseAreas === 'string' && expertiseAreas.length > 0) {
     return [expertiseAreas];
@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
     const personId = await createPerson(newPerson);
 
     // Link person to events bidirectionally
-    if (relatedEventIds && relatedEventIds.length > 0) {
+    if (relatedEventIds && relatedEventIds.length > 0 && adminDb) {
       for (const eventId of relatedEventIds) {
         try {
           const eventRef = adminDb.collection('events').doc(eventId);
