@@ -171,7 +171,6 @@ export async function syncEventToGoogleCalendar(
     }
 
     const calendar = await getCalendarClient();
-    const subscriberEmails = await getSubscriberEmails();
 
     const startDate = event.startTime || event.date!;
     const endDate = event.endTime || (() => {
@@ -180,28 +179,6 @@ export async function syncEventToGoogleCalendar(
       end.setHours(end.getHours() + 1);
       return end;
     })();
-
-    // Try to generate Google Meet link if virtualMeetingLink is not already set
-    const shouldCreateMeet = !event.virtualMeetingLink;
-    
-    const calendarEvent: any = {
-      summary: event.eventTitle,
-      description: [
-        event.purpose && `Purpose: ${event.purpose}`,
-        event.description && `Description: ${event.description}`,
-        event.location && `Location: ${event.location}`,
-        event.eventType && `Type: ${event.eventType}`,
-        event.virtualMeetingLink && `\nVirtual Meeting:\n${event.virtualMeetingLink}`,
-      ].filter(Boolean).join('\n\n'),
-      location: event.location || undefined,
-      start: {
-        dateTime: formatDateForGoogleCalendar(startDate),
-        timeZone: 'America/New_York',
-      },
-      end: {
-        dateTime: formatDateForGoogleCalendar(endDate),
-        timeZone: 'America/New_York',
-      },
 
     // Try to generate Google Meet link if virtualMeetingLink is not already set
     const shouldCreateMeet = !event.virtualMeetingLink;
@@ -305,6 +282,19 @@ export async function syncEventToGoogleCalendar(
     }
 
     return eventId;
+  } catch (error: any) {
+    console.error('❌ Error syncing event to Google Calendar:', error);
+    
+    // Provide helpful error message for Calendar API not enabled
+    if (error.code === 403 && error.message?.includes('has not been used in project')) {
+      const projectMatch = error.message.match(/project (\d+)/);
+      if (projectMatch) {
+        const projectNumber = projectMatch[1];
+        console.error(`\n❌ Calendar API Error:`);
+        console.error(`   The Calendar API is not enabled in the project where your service account belongs.`);
+        console.error(`   Project number from error: ${projectNumber}`);
+        console.error(`\n   To fix this:`);
+        console.error(`   1. Go to https://console.cloud.google.com/`);
         console.error(`   2. Find the project that contains your service account`);
         console.error(`   3. Enable the Calendar API in that project`);
         console.error(`   4. The project number ${projectNumber} might be the numeric ID for your project`);
@@ -352,7 +342,6 @@ export async function syncMeetingToGoogleCalendar(
 ): Promise<string | null> {
   try {
     const calendar = await getCalendarClient();
-    const subscriberEmails = await getSubscriberEmails();
 
     if (!meeting.startTime && !meeting.date) {
       console.log('Meeting has no start time or date, skipping Google Calendar sync');
@@ -365,25 +354,6 @@ export async function syncMeetingToGoogleCalendar(
       end.setHours(end.getHours() + 1);
       return end;
     })();
-
-    // Try to generate Google Meet link if virtualMeetingLink is not already set
-    const shouldCreateMeet = !meeting.virtualMeetingLink;
-    
-    const calendarEvent: any = {
-      summary: meeting.title,
-      description: [
-        meeting.description,
-        meeting.virtualMeetingLink && `\nVirtual Meeting:\n${meeting.virtualMeetingLink}`,
-      ].filter(Boolean).join('\n\n') || undefined,
-      location: meeting.location || undefined,
-      start: {
-        dateTime: formatDateForGoogleCalendar(startDate),
-        timeZone: 'America/New_York',
-      },
-      end: {
-        dateTime: formatDateForGoogleCalendar(endDate),
-        timeZone: 'America/New_York',
-      },
 
     // Try to generate Google Meet link if virtualMeetingLink is not already set
     const shouldCreateMeet = !meeting.virtualMeetingLink;
@@ -481,20 +451,6 @@ export async function syncMeetingToGoogleCalendar(
     }
 
     return eventId;
-=======
-        conferenceDataVersion: 1,
-      });
-      eventId = response.data.id || '';
-      meetLink = response.data.conferenceData?.entryPoints?.[0]?.uri || undefined;
-      console.log(`Meeting created successfully on Google Calendar: ${eventId}`);
-      if (meetLink) {
-        console.log(`   Google Meet Link: ${meetLink}`);
-      }
->>>>>>> origin/main
-    }
-
-    // Return both event ID and meet link (caller should store meet link in meeting document)
-    return eventId;
   } catch (error: any) {
     console.error('Error syncing meeting to Google Calendar:', error);
     return null;
@@ -536,4 +492,3 @@ export async function deleteEventFromGoogleCalendar(eventId: string): Promise<vo
     // Don't throw - allow deletion to continue even if Google Calendar delete fails
   }
 }
-

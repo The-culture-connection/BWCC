@@ -27,14 +27,13 @@ const nextConfig = {
   
   // Production-only optimizations
   ...(process.env.NODE_ENV === 'production' && {
-    // Enable strict mode in production
     productionBrowserSourceMaps: false,
   }),
   
   // Experimental features for better performance
   experimental: {
     optimizeCss: true,
-    optimizePackageImports: ['lucide-react', 'date-fns'],
+    optimizePackageImports: ['lucide-react', 'date-fns', 'framer-motion'],
   },
 }
 
